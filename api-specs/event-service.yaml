@@ -1,0 +1,2012 @@
+openapi: 3.0.3
+info:
+  title: Event Management Service API
+  description: |
+    Comprehensive event management service for the Event Management Platform.
+    Handles event creation, management, sessions, locations, and complex scheduling.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@eventplatform.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.eventplatform.com/events/v1
+    description: Production server
+  - url: https://staging-api.eventplatform.com/events/v1
+    description: Staging server
+  - url: http://localhost:8082/api/v1
+    description: Development server
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /events:
+    get:
+      summary: List events with filtering and pagination
+      description: Retrieve a paginated list of events with comprehensive filtering options
+      tags:
+        - Events
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: type
+          in: query
+          description: Filter by event type
+          schema:
+            $ref: '#/components/schemas/EventType'
+        - name: status
+          in: query
+          description: Filter by event status
+          schema:
+            $ref: '#/components/schemas/EventStatus'
+        - name: organizerId
+          in: query
+          description: Filter by organizer user ID
+          schema:
+            type: string
+            format: uuid
+        - name: startDateAfter
+          in: query
+          description: Filter events starting after this date
+          schema:
+            type: string
+            format: date-time
+        - name: startDateBefore
+          in: query
+          description: Filter events starting before this date
+          schema:
+            type: string
+            format: date-time
+        - name: location
+          in: query
+          description: Filter by location (city, venue name, or coordinates)
+          schema:
+            type: string
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated)
+          schema:
+            type: array
+            items:
+              type: string
+        - name: search
+          in: query
+          description: Search in title, description, and venue
+          schema:
+            type: string
+            minLength: 2
+        - name: priceMin
+          in: query
+          description: Minimum price filter
+          schema:
+            type: number
+            format: decimal
+        - name: priceMax
+          in: query
+          description: Maximum price filter
+          schema:
+            type: number
+            format: decimal
+        - name: nearLocation
+          in: query
+          description: Find events near coordinates (lat,lng,radiusKm)
+          schema:
+            type: string
+            pattern: '^-?\d+\.?\d*,-?\d+\.?\d*,\d+$'
+            example: "40.7128,-74.0060,50"
+      responses:
+        '200':
+          description: Successfully retrieved events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedEventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Create a new event
+      description: Create a new event with comprehensive details
+      tags:
+        - Events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '201':
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /events/{eventId}:
+    get:
+      summary: Get event by ID
+      description: Retrieve detailed information about a specific event
+      tags:
+        - Events
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+        - name: includeSessions
+          in: query
+          description: Include event sessions in response
+          schema:
+            type: boolean
+            default: false
+        - name: includeTranslations
+          in: query
+          description: Include all translations
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Event found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      summary: Update event
+      description: Update event information (full update)
+      tags:
+        - Events
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEventRequest'
+      responses:
+        '200':
+          description: Event updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Version conflict (optimistic locking)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Partially update event
+      description: Update specific event fields
+      tags:
+        - Events
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchEventRequest'
+      responses:
+        '200':
+          description: Event updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete event
+      description: Soft delete an event (sets status to CANCELLED)
+      tags:
+        - Events
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+        - name: hardDelete
+          in: query
+          description: Permanently delete event data (admin only)
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '204':
+          description: Event deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /events/{eventId}/sessions:
+    get:
+      summary: Get event sessions
+      description: Retrieve all sessions for an event
+      tags:
+        - Event Sessions
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+        - name: sessionType
+          in: query
+          description: Filter by session type
+          schema:
+            $ref: '#/components/schemas/SessionType'
+        - name: speakerId
+          in: query
+          description: Filter by speaker ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Sessions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventSession'
+    post:
+      summary: Add session to event
+      description: Create a new session for the event
+      tags:
+        - Event Sessions
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /events/{eventId}/sessions/{sessionId}:
+    get:
+      summary: Get event session by ID
+      description: Retrieve detailed information about a specific session
+      tags:
+        - Event Sessions
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+        - name: sessionId
+          in: path
+          required: true
+          description: Session ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: Update event session
+      description: Update session information
+      tags:
+        - Event Sessions
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSessionRequest'
+      responses:
+        '200':
+          description: Session updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Remove session from event
+      description: Delete a session
+      tags:
+        - Event Sessions
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Session deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /events/{eventId}/tickets:
+    get:
+      summary: Get event ticket tiers
+      description: Retrieve all ticket tiers for an event
+      tags:
+        - Event Tickets
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+        - name: includeAvailability
+          in: query
+          description: Include real-time availability
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Ticket tiers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TicketTier'
+    post:
+      summary: Add ticket tier to event
+      description: Create a new ticket tier for the event
+      tags:
+        - Event Tickets
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicketTierRequest'
+      responses:
+        '201':
+          description: Ticket tier created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketTier'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /events/{eventId}/tickets/{tierId}:
+    get:
+      summary: Get ticket tier by ID
+      description: Retrieve detailed information about a ticket tier
+      tags:
+        - Event Tickets
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+        - name: tierId
+          in: path
+          required: true
+          description: Ticket tier ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ticket tier found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketTier'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: Update ticket tier
+      description: Update ticket tier information
+      tags:
+        - Event Tickets
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+        - name: tierId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTicketTierRequest'
+      responses:
+        '200':
+          description: Ticket tier updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketTier'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Remove ticket tier
+      description: Delete a ticket tier (only if no tickets sold)
+      tags:
+        - Event Tickets
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+        - name: tierId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Ticket tier deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Cannot delete tier with sold tickets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /events/{eventId}/duplicate:
+    post:
+      summary: Duplicate event
+      description: Create a copy of an existing event
+      tags:
+        - Events
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DuplicateEventRequest'
+      responses:
+        '201':
+          description: Event duplicated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /events/{eventId}/publish:
+    post:
+      summary: Publish event
+      description: Change event status from DRAFT to PUBLISHED
+      tags:
+        - Events
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+      responses:
+        '200':
+          description: Event published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          description: Event cannot be published (validation errors)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /events/{eventId}/cancel:
+    post:
+      summary: Cancel event
+      description: Cancel an event and notify attendees
+      tags:
+        - Events
+      parameters:
+        - $ref: '#/components/parameters/EventIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 1000
+                  description: Reason for cancellation
+                notifyAttendees:
+                  type: boolean
+                  default: true
+                  description: Send cancellation notifications
+                refundPolicy:
+                  type: string
+                  enum: [FULL_REFUND, PARTIAL_REFUND, NO_REFUND, CREDIT]
+                  default: FULL_REFUND
+              required:
+                - reason
+      responses:
+        '200':
+          description: Event cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /events/search:
+    get:
+      summary: Advanced event search
+      description: Search events with complex criteria and faceted results
+      tags:
+        - Events
+      parameters:
+        - name: q
+          in: query
+          description: Search query
+          schema:
+            type: string
+            minLength: 1
+        - name: facets
+          in: query
+          description: Return faceted results
+          schema:
+            type: boolean
+            default: false
+        - name: boost
+          in: query
+          description: Boost certain fields (title:2,description:1)
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /events/analytics:
+    get:
+      summary: Get events analytics
+      description: Retrieve analytics data for events
+      tags:
+        - Analytics
+      security:
+        - BearerAuth: [admin, analytics]
+      parameters:
+        - name: dateFrom
+          in: query
+          required: true
+          description: Start date for analytics
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          required: true
+          description: End date for analytics
+          schema:
+            type: string
+            format: date
+        - name: groupBy
+          in: query
+          description: Group results by time period
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+        - name: metrics
+          in: query
+          description: Metrics to include (comma-separated)
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [events_created, events_published, total_registrations, revenue]
+        - name: organizerId
+          in: query
+          description: Filter by organizer
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Analytics data retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventAnalyticsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  parameters:
+    EventIdParam:
+      name: eventId
+      in: path
+      required: true
+      description: Event ID
+      schema:
+        type: string
+        example: "evt_550e8400-e29b-41d4-a716-446655440000"
+    PageParam:
+      name: page
+      in: query
+      description: Page number (0-based)
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    SizeParam:
+      name: size
+      in: query
+      description: Page size
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    SortParam:
+      name: sort
+      in: query
+      description: Sort criteria (field,direction)
+      schema:
+        type: array
+        items:
+          type: string
+          pattern: '^[a-zA-Z][a-zA-Z0-9]*,(asc|desc)$'
+        example: ["startDateTime,asc", "createdAt,desc"]
+
+  schemas:
+    # Event Schemas
+    EventResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "evt_550e8400-e29b-41d4-a716-446655440000"
+        title:
+          type: string
+          example: "Tech Conference 2024"
+        description:
+          type: string
+          example: "Annual technology conference featuring industry leaders"
+        organizerId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        type:
+          $ref: '#/components/schemas/EventType'
+        status:
+          $ref: '#/components/schemas/EventStatus'
+        schedule:
+          $ref: '#/components/schemas/EventSchedule'
+        timezone:
+          type: string
+          example: "America/New_York"
+        location:
+          $ref: '#/components/schemas/EventLocation'
+        customFields:
+          type: object
+          additionalProperties: true
+          example:
+            dress_code: "business_casual"
+            parking_available: true
+        ticketTiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketTier'
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          example: ["https://cdn.eventplatform.com/events/img1.jpg"]
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventSession'
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["technology", "conference", "networking"]
+        translations:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/EventTranslation'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-20T14:22:00Z"
+        version:
+          type: integer
+          format: int64
+          example: 1
+          description: Version for optimistic locking
+      required:
+        - id
+        - title
+        - organizerId
+        - type
+        - status
+        - schedule
+        - timezone
+        - location
+        - createdAt
+        - updatedAt
+        - version
+
+    CreateEventRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: "Tech Conference 2024"
+        description:
+          type: string
+          maxLength: 5000
+          example: "Annual technology conference featuring industry leaders"
+        organizerId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        type:
+          $ref: '#/components/schemas/EventType'
+        schedule:
+          $ref: '#/components/schemas/CreateEventScheduleRequest'
+        timezone:
+          type: string
+          example: "America/New_York"
+          description: IANA timezone identifier
+        location:
+          $ref: '#/components/schemas/CreateEventLocationRequest'
+        customFields:
+          type: object
+          additionalProperties: true
+        ticketTiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateTicketTierRequest'
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateSessionRequest'
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 20
+        translations:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/CreateEventTranslationRequest'
+      required:
+        - title
+        - organizerId
+        - type
+        - schedule
+        - timezone
+        - location
+
+    UpdateEventRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+        type:
+          $ref: '#/components/schemas/EventType'
+        schedule:
+          $ref: '#/components/schemas/UpdateEventScheduleRequest'
+        timezone:
+          type: string
+        location:
+          $ref: '#/components/schemas/UpdateEventLocationRequest'
+        customFields:
+          type: object
+          additionalProperties: true
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 20
+        translations:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/UpdateEventTranslationRequest'
+        version:
+          type: integer
+          format: int64
+          description: Current version for optimistic locking
+      required:
+        - version
+
+    PatchEventRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+        status:
+          $ref: '#/components/schemas/EventStatus'
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+        customFields:
+          type: object
+          additionalProperties: true
+        version:
+          type: integer
+          format: int64
+      required:
+        - version
+      additionalProperties: false
+
+    DuplicateEventRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Title for the duplicated event
+        newStartDateTime:
+          type: string
+          format: date-time
+          description: New start date/time for the duplicated event
+        copyRegistrations:
+          type: boolean
+          default: false
+          description: Whether to copy existing registrations
+        copySessions:
+          type: boolean
+          default: true
+          description: Whether to copy event sessions
+        copyTicketTiers:
+          type: boolean
+          default: true
+          description: Whether to copy ticket tiers
+      required:
+        - title
+
+    # Schedule Schemas
+    EventSchedule:
+      type: object
+      properties:
+        startDateTime:
+          type: string
+          format: date-time
+          example: "2024-06-15T09:00:00Z"
+        endDateTime:
+          type: string
+          format: date-time
+          example: "2024-06-15T17:00:00Z"
+        duration:
+          type: string
+          pattern: '^PT\d+H\d*M?$'
+          example: "PT8H"
+          description: ISO 8601 duration format
+        recurrence:
+          $ref: '#/components/schemas/RecurrenceRule'
+        exceptions:
+          type: array
+          items:
+            type: string
+            format: date-time
+          description: Dates to exclude from recurrence
+      required:
+        - startDateTime
+        - endDateTime
+        - duration
+
+    CreateEventScheduleRequest:
+      type: object
+      properties:
+        startDateTime:
+          type: string
+          format: date-time
+        endDateTime:
+          type: string
+          format: date-time
+        recurrence:
+          $ref: '#/components/schemas/CreateRecurrenceRuleRequest'
+        exceptions:
+          type: array
+          items:
+            type: string
+            format: date-time
+      required:
+        - startDateTime
+        - endDateTime
+
+    UpdateEventScheduleRequest:
+      type: object
+      properties:
+        startDateTime:
+          type: string
+          format: date-time
+        endDateTime:
+          type: string
+          format: date-time
+        recurrence:
+          $ref: '#/components/schemas/UpdateRecurrenceRuleRequest'
+        exceptions:
+          type: array
+          items:
+            type: string
+            format: date-time
+
+    RecurrenceRule:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/RecurrenceType'
+        interval:
+          type: integer
+          minimum: 1
+          example: 1
+          description: Interval between recurrences
+        daysOfWeek:
+          type: array
+          items:
+            type: string
+            enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+        count:
+          type: integer
+          minimum: 1
+          description: Maximum number of occurrences
+        until:
+          type: string
+          format: date
+          description: End date for recurrence
+        customRule:
+          type: string
+          description: Custom cron-like expression
+      required:
+        - type
+
+    CreateRecurrenceRuleRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/RecurrenceType'
+        interval:
+          type: integer
+          minimum: 1
+          default: 1
+        daysOfWeek:
+          type: array
+          items:
+            type: string
+            enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+        count:
+          type: integer
+          minimum: 1
+        until:
+          type: string
+          format: date
+        customRule:
+          type: string
+      required:
+        - type
+
+    UpdateRecurrenceRuleRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/RecurrenceType'
+        interval:
+          type: integer
+          minimum: 1
+        daysOfWeek:
+          type: array
+          items:
+            type: string
+            enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+        count:
+          type: integer
+          minimum: 1
+        until:
+          type: string
+          format: date
+        customRule:
+          type: string
+
+    # Location Schemas
+    EventLocation:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/LocationType'
+        venueName:
+          type: string
+          example: "Grand Convention Center"
+        physicalAddress:
+          $ref: '#/components/schemas/Address'
+        coordinates:
+          $ref: '#/components/schemas/GeoPoint'
+        virtualUrl:
+          type: string
+          format: uri
+          example: "https://zoom.us/j/123456789"
+        accessInstructions:
+          type: string
+          maxLength: 1000
+          example: "Enter through main lobby, take elevator to 5th floor"
+        capacity:
+          type: integer
+          minimum: 1
+          example: 500
+      required:
+        - type
+
+    CreateEventLocationRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/LocationType'
+        venueName:
+          type: string
+          maxLength: 200
+        physicalAddress:
+          $ref: '#/components/schemas/CreateAddressRequest'
+        virtualUrl:
+          type: string
+          format: uri
+        accessInstructions:
+          type: string
+          maxLength: 1000
+        capacity:
+          type: integer
+          minimum: 1
+      required:
+        - type
+
+    UpdateEventLocationRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/LocationType'
+        venueName:
+          type: string
+          maxLength: 200
+        physicalAddress:
+          $ref: '#/components/schemas/UpdateAddressRequest'
+        virtualUrl:
+          type: string
+          format: uri
+        accessInstructions:
+          type: string
+          maxLength: 1000
+        capacity:
+          type: integer
+          minimum: 1
+
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+          example: "123 Convention Blvd"
+        city:
+          type: string
+          example: "New York"
+        state:
+          type: string
+          example: "NY"
+        postalCode:
+          type: string
+          example: "10001"
+        country:
+          type: string
+          example: "United States"
+      required:
+        - street
+        - city
+        - country
+
+    CreateAddressRequest:
+      type: object
+      properties:
+        street:
+          type: string
+          maxLength: 200
+        city:
+          type: string
+          maxLength: 100
+        state:
+          type: string
+          maxLength: 100
+        postalCode:
+          type: string
+          maxLength: 20
+        country:
+          type: string
+          maxLength: 100
+      required:
+        - street
+        - city
+        - country
+
+    UpdateAddressRequest:
+      type: object
+      properties:
+        street:
+          type: string
+          maxLength: 200
+        city:
+          type: string
+          maxLength: 100
+        state:
+          type: string
+          maxLength: 100
+        postalCode:
+          type: string
+          maxLength: 20
+        country:
+          type: string
+          maxLength: 100
+
+    GeoPoint:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          example: 40.7128
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          example: -74.0060
+      required:
+        - latitude
+        - longitude
+
+    # Ticket Schemas
+    TicketTier:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "tier_abc123"
+        name:
+          type: string
+          example: "Early Bird"
+        description:
+          type: string
+          example: "Limited time discount for early registrations"
+        price:
+          type: number
+          format: decimal
+          example: 99.99
+        currency:
+          type: string
+          pattern: '^[A-Z]{3} object
+      properties:
+        street:
+          type: string
+          example: "123 Convention Blvd"
+        city:
+          type: string
+          example: "New York"
+        state:
+          type:
+          example: "USD"
+        totalQuantity:
+          type: integer
+          minimum: 1
+          example: 100
+        availableQuantity:
+          type: integer
+          minimum: 0
+          example: 75
+        salesStartAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        salesEndAt:
+          type: string
+          format: date-time
+          example: "2024-06-01T23:59:59Z"
+        restrictions:
+          type: object
+          additionalProperties: true
+          example:
+            min_age: 18
+            requires_approval: false
+      required:
+        - id
+        - name
+        - price
+        - currency
+        - totalQuantity
+        - availableQuantity
+
+    CreateTicketTierRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        price:
+          type: number
+          format: decimal
+          minimum: 0
+        currency:
+          type: string
+          pattern: '^[A-Z]{3} object
+      properties:
+        street:
+          type: string
+          example: "123 Convention Blvd"
+        city:
+          type: string
+          example: "New York"
+        state:
+          type:
+          default: "USD"
+        totalQuantity:
+          type: integer
+          minimum: 1
+        salesStartAt:
+          type: string
+          format: date-time
+        salesEndAt:
+          type: string
+          format: date-time
+        restrictions:
+          type: object
+          additionalProperties: true
+      required:
+        - name
+        - price
+        - totalQuantity
+
+    UpdateTicketTierRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        price:
+          type: number
+          format: decimal
+          minimum: 0
+        currency:
+          type: string
+          pattern: '^[A-Z]{3} object
+      properties:
+        street:
+          type: string
+          example: "123 Convention Blvd"
+        city:
+          type: string
+          example: "New York"
+        state:
+          type:
+        totalQuantity:
+          type: integer
+          minimum: 1
+        salesStartAt:
+          type: string
+          format: date-time
+        salesEndAt:
+          type: string
+          format: date-time
+        restrictions:
+          type: object
+          additionalProperties: true
+
+    # Session Schemas
+    EventSession:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "sess_abc123"
+        title:
+          type: string
+          example: "Keynote: Future of AI"
+        description:
+          type: string
+          example: "Deep dive into artificial intelligence trends"
+        startTime:
+          type: string
+          format: date-time
+          example: "2024-06-15T09:00:00Z"
+        duration:
+          type: string
+          pattern: '^PT\d+H\d*M? object
+      properties:
+        street:
+          type: string
+          example: "123 Convention Blvd"
+        city:
+          type: string
+          example: "New York"
+        state:
+          type:
+          example: "PT1H30M"
+        speakerIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          example: ["550e8400-e29b-41d4-a716-446655440000"]
+        room:
+          type: string
+          example: "Main Auditorium"
+        type:
+          $ref: '#/components/schemas/SessionType'
+        metadata:
+          type: object
+          additionalProperties: true
+          example:
+            recording_allowed: true
+            live_stream_url: "https://stream.example.com/session1"
+      required:
+        - id
+        - title
+        - startTime
+        - duration
+        - type
+
+    CreateSessionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        startTime:
+          type: string
+          format: date-time
+        duration:
+          type: string
+          pattern: '^PT\d+H\d*M? object
+      properties:
+        street:
+          type: string
+          example: "123 Convention Blvd"
+        city:
+          type: string
+          example: "New York"
+        state:
+          type:
+        speakerIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        room:
+          type: string
+          maxLength: 100
+        type:
+          $ref: '#/components/schemas/SessionType'
+        metadata:
+          type: object
+          additionalProperties: true
+      required:
+        - title
+        - startTime
+        - duration
+        - type
+
+    UpdateSessionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        startTime:
+          type: string
+          format: date-time
+        duration:
+          type: string
+          pattern: '^PT\d+H\d*M? object
+      properties:
+        street:
+          type: string
+          example: "123 Convention Blvd"
+        city:
+          type: string
+          example: "New York"
+        state:
+          type:
+        speakerIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        room:
+          type: string
+          maxLength: 100
+        type:
+          $ref: '#/components/schemas/SessionType'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    # Translation Schemas
+    EventTranslation:
+      type: object
+      properties:
+        title:
+          type: string
+          example: "Conferencia de Tecnología 2024"
+        description:
+          type: string
+          example: "Conferencia anual de tecnología con líderes de la industria"
+      required:
+        - title
+
+    CreateEventTranslationRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+      required:
+        - title
+
+    UpdateEventTranslationRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+
+    # Search and Analytics Schemas
+    EventSearchResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventResponse'
+        totalHits:
+          type: integer
+          format: int64
+          example: 1250
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 20
+        facets:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              properties:
+                value:
+                  type: string
+                count:
+                  type: integer
+          example:
+            event_type:
+              - value: "CONFERENCE"
+                count: 45
+              - value: "WORKSHOP"
+                count: 23
+            location_city:
+              - value: "New York"
+                count: 15
+              - value: "San Francisco"
+                count: 12
+      required:
+        - events
+        - totalHits
+        - page
+        - size
+
+    EventAnalyticsResponse:
+      type: object
+      properties:
+        dateRange:
+          type: object
+          properties:
+            from:
+              type: string
+              format: date
+            to:
+              type: string
+              format: date
+        summary:
+          type: object
+          properties:
+            totalEvents:
+              type: integer
+            publishedEvents:
+              type: integer
+            totalRegistrations:
+              type: integer
+            totalRevenue:
+              type: number
+              format: decimal
+        timeSeries:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              eventsCreated:
+                type: integer
+              eventsPublished:
+                type: integer
+              registrations:
+                type: integer
+              revenue:
+                type: number
+                format: decimal
+        topEvents:
+          type: array
+          items:
+            type: object
+            properties:
+              eventId:
+                type: string
+              title:
+                type: string
+              registrations:
+                type: integer
+              revenue:
+                type: number
+                format: decimal
+      required:
+        - dateRange
+        - summary
+
+    # Pagination Schemas
+    PagedEventResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventResponse'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+        totalElements:
+          type: integer
+          format: int64
+          example: 1250
+        totalPages:
+          type: integer
+          example: 63
+        first:
+          type: boolean
+          example: true
+        last:
+          type: boolean
+          example: false
+        numberOfElements:
+          type: integer
+          example: 20
+        empty:
+          type: boolean
+          example: false
+      required:
+        - content
+        - page
+        - totalElements
+        - totalPages
+        - first
+        - last
+        - numberOfElements
+        - empty
+
+    PageInfo:
+      type: object
+      properties:
+        size:
+          type: integer
+          example: 20
+        number:
+          type: integer
+          example: 0
+        sort:
+          type: object
+          properties:
+            sorted:
+              type: boolean
+              example: true
+            unsorted:
+              type: boolean
+              example: false
+            empty:
+              type: boolean
+              example: false
+      required:
+        - size
+        - number
+        - sort
+
+    # Enum Schemas
+    EventType:
+      type: string
+      enum:
+        - CONFERENCE
+        - WORKSHOP
+        - MEETUP
+        - WEBINAR
+        - HYBRID
+        - TRADE_SHOW
+        - SEMINAR
+        - NETWORKING
+        - TRAINING
+        - SOCIAL
+      example: "CONFERENCE"
+
+    EventStatus:
+      type: string
+      enum:
+        - DRAFT
+        - PUBLISHED
+        - CANCELLED
+        - COMPLETED
+        - POSTPONED
+      example: "PUBLISHED"
+
+    LocationType:
+      type: string
+      enum:
+        - PHYSICAL
+        - VIRTUAL
+        - HYBRID
+      example: "PHYSICAL"
+
+    RecurrenceType:
+      type: string
+      enum:
+        - DAILY
+        - WEEKLY
+        - MONTHLY
+        - YEARLY
+        - CUSTOM
+      example: "WEEKLY"
+
+    SessionType:
+      type: string
+      enum:
+        - KEYNOTE
+        - PRESENTATION
+        - WORKSHOP
+        - PANEL
+        - BREAKOUT
+        - NETWORKING
+        - BREAK
+        - LUNCH
+        - DEMO
+      example: "KEYNOTE"
+
+    # Error Schemas
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-20T15:30:45Z"
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Validation failed for one or more fields"
+        path:
+          type: string
+          example: "/api/v1/events"
+        traceId:
+          type: string
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+      required:
+        - timestamp
+        - status
+        - error
+        - message
+        - path
+
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+          example: "startDateTime"
+        message:
+          type: string
+          example: "Start date must be in the future"
+        rejectedValue:
+          type: string
+          nullable: true
+          example: "2023-01-01T00:00:00Z"
+        code:
+          type: string
+          example: "FUTURE_DATE_REQUIRED"
+      required:
+        - field
+        - message
+        - code
+
+    # Bulk Operations
+    BulkEventUpdateRequest:
+      type: object
+      properties:
+        eventIds:
+          type: array
+          items:
+            type: string
+          maxItems: 100
+          example: ["evt_123", "evt_456", "evt_789"]
+        updates:
+          type: object
+          properties:
+            status:
+              $ref: '#/components/schemas/EventStatus'
+            tags:
+              type: array
+              items:
+                type: string
+            customFields:
+              type: object
+              additionalProperties: true
+      required:
+        - eventIds
+        - updates
+
+    BulkOperationResponse:
+      type: object
+      properties:
+        successful:
+          type: integer
+          example: 45
+        failed:
+          type: integer
+          example: 5
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              eventId:
+                type: string
+              error:
+                type: string
+              message:
+                type: string
+        processedAt:
+          type: string
+          format: date-time
+          example: "2024-01-20T15:30:45Z"
+      required:
+        - successful
+        - failed
+        - errors
+        - processedAt
+
+  responses:
+    BadRequest:
+      description: Bad request - validation errors or malformed input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation-error:
+              summary: Validation Error
+              value:
+                timestamp: "2024-01-20T15:30:45Z"
+                status: 400
+                error: "Bad Request"
+                message: "Validation failed"
+                path: "/api/v1/events"
+                traceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                details:
+                  - field: "startDateTime"
+                    message: "Start date must be in the future"
+                    rejectedValue: "2023-01-01T00:00:00Z"
+                    code: "FUTURE_DATE_REQUIRED"
+
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missing-token:
+              summary: Missing Authentication Token
+              value:
+                timestamp: "2024-01-20T15:30:45Z"
+                status: 401
+                error: "Unauthorized"
+                message: "Authentication token is required"
+                path: "/api/v1/events"
+                traceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+    Forbidden:
+      description: Access denied - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            insufficient-permissions:
+              summary: Insufficient Permissions
+              value:
+                timestamp: "2024-01-20T15:30:45Z"
+                status: 403
+                error: "Forbidden"
+                message: "Insufficient permissions to access this resource"
+                path: "/api/v1/events/123/analytics"
+                traceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            event-not-found:
+              summary: Event Not Found
+              value:
+                timestamp: "2024-01-20T15:30:45Z"
+                status: 404
+                error: "Not Found"
+                message: "Event with ID evt_550e8400-e29b-41d4-a716-446655440000 not found"
+                path: "/api/v1/events/evt_550e8400-e29b-41d4-a716-446655440000"
+                traceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+tags:
+  - name: Events
+    description: Event management operations
+  - name: Event Sessions
+    description: Event session management
+  - name: Event Tickets
+    description: Event ticket tier management
+  - name: Analytics
+    description: Event analytics and reporting
+
+externalDocs:
+  description: Find more information about the Event Management Platform API
+  url: https://docs.eventplatform.com/api/events object
+      properties:
+        street:
+          type: string
+          example: "123 Convention Blvd"
+        city:
+          type: string
+          example: "New York"
+        state:
+          type:
