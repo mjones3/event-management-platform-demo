@@ -638,11 +638,26 @@ jobs:
           
           echo "✅ Enhanced service with microservice features!"
 
-      - name: Create GitHub Repository and push generated code
+      - name: Create service directory and commit to current repository
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+          
+          # Create services directory if it doesn't exist
+          mkdir -p services
+          
+          # Move generated code to services directory
+          mv "$SERVICE_NAME" "services/$SERVICE_NAME"
+          
+          # Commit the changes
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git add services/
+          git commit -m "🎉 Add $SERVICE_NAME microservice"
+          git push origin main
+          
+          echo "✅ Service '$SERVICE_NAME' created in services/ directory!"
           
           # Create new repository
           gh repo create "${{ github.repository_owner }}/$SERVICE_NAME" \
