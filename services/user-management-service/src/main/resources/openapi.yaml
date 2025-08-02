@@ -1,0 +1,450 @@
+openapi: 3.0.3
+info:
+  contact:
+    email: support@eventplatform.com
+    name: API Support
+  description: User management and authentication service
+  title: UserManagementService Service API
+  version: 1.0.0
+servers:
+- description: Production server
+  url: https://api.eventplatform.com/user-management-service/v1
+- description: Development server
+  url: http://localhost:8080/api/v1
+security:
+- BearerAuth: []
+tags:
+- description: Item management operations
+  name: UserManagementService
+- description: Service health endpoints
+  name: Health
+paths:
+  /health:
+    get:
+      description: Returns the health status of the service
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+          description: Service is healthy
+      security: []
+      summary: Health check endpoint
+      tags:
+      - Health
+      x-accepts: application/json
+      x-tags:
+      - tag: Health
+  /user-management-service_PLURAL:
+    get:
+      description: Retrieve a paginated list with optional filtering
+      parameters:
+      - description: Page number (0-based)
+        explode: true
+        in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          type: integer
+        style: form
+      - description: Page size
+        explode: true
+        in: query
+        name: size
+        required: false
+        schema:
+          default: 20
+          maximum: 100
+          minimum: 1
+          type: integer
+        style: form
+      - description: Search term
+        explode: true
+        in: query
+        name: search
+        required: false
+        schema:
+          minLength: 2
+          type: string
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedUserManagementServiceResponse'
+          description: Successfully retrieved items
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request - validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Authentication required
+      summary: List user-management-service_PLURAL with pagination
+      tags:
+      - UserManagementService
+      x-accepts: application/json
+      x-tags:
+      - tag: UserManagementService
+    post:
+      description: Create a new item in the system
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserManagementServiceRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserManagementServiceResponse'
+          description: Item created successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request - validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Authentication required
+      summary: Create a new item
+      tags:
+      - UserManagementService
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: UserManagementService
+  /user-management-service_PLURAL/{id}:
+    delete:
+      description: Delete an item
+      parameters:
+      - explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      responses:
+        "204":
+          description: Item deleted successfully
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Resource not found
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Authentication required
+      summary: Delete item
+      tags:
+      - UserManagementService
+      x-accepts: application/json
+      x-tags:
+      - tag: UserManagementService
+    get:
+      description: Retrieve detailed information about a specific item
+      parameters:
+      - description: Item ID
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserManagementServiceResponse'
+          description: Item found
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Resource not found
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Authentication required
+      summary: Get item by ID
+      tags:
+      - UserManagementService
+      x-accepts: application/json
+      x-tags:
+      - tag: UserManagementService
+    put:
+      description: Update item information (full update)
+      parameters:
+      - explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserManagementServiceRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserManagementServiceResponse'
+          description: Item updated successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request - validation errors
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Resource not found
+      summary: Update item
+      tags:
+      - UserManagementService
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: UserManagementService
+components:
+  responses:
+    BadRequest:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Bad request - validation errors
+    Unauthorized:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Authentication required
+    NotFound:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Resource not found
+  schemas:
+    HealthResponse:
+      example:
+        service: user-management-service
+        version: 1.0.0
+        status: UP
+        timestamp: 2000-01-23T04:56:07.000+00:00
+      properties:
+        status:
+          example: UP
+          type: string
+        service:
+          example: user-management-service
+          type: string
+        timestamp:
+          format: date-time
+          type: string
+        version:
+          example: 1.0.0
+          type: string
+      required:
+      - service
+      - status
+      - timestamp
+      type: object
+    UserManagementServiceResponse:
+      example:
+        createdAt: 2024-01-15T10:30:00Z
+        name: Sample Item
+        description: A sample item description
+        id: 550e8400-e29b-41d4-a716-446655440000
+        status: ACTIVE
+        updatedAt: 2024-01-20T14:22:00Z
+      properties:
+        id:
+          example: 550e8400-e29b-41d4-a716-446655440000
+          format: uuid
+          type: string
+        name:
+          example: Sample Item
+          type: string
+        description:
+          example: A sample item description
+          type: string
+        status:
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - PENDING
+          example: ACTIVE
+          type: string
+        createdAt:
+          example: 2024-01-15T10:30:00Z
+          format: date-time
+          type: string
+        updatedAt:
+          example: 2024-01-20T14:22:00Z
+          format: date-time
+          type: string
+      required:
+      - createdAt
+      - id
+      - name
+      - status
+      type: object
+    CreateUserManagementServiceRequest:
+      example:
+        name: New Item
+        description: Description of the new item
+      properties:
+        name:
+          example: New Item
+          maxLength: 100
+          minLength: 1
+          type: string
+        description:
+          example: Description of the new item
+          maxLength: 500
+          type: string
+      required:
+      - name
+      type: object
+    UpdateUserManagementServiceRequest:
+      example:
+        name: name
+        description: description
+        status: ACTIVE
+      properties:
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          type: string
+        status:
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - PENDING
+          type: string
+      type: object
+    PagedUserManagementServiceResponse:
+      example:
+        number: 0
+        size: 20
+        last: false
+        totalPages: 8
+        content:
+        - createdAt: 2024-01-15T10:30:00Z
+          name: Sample Item
+          description: A sample item description
+          id: 550e8400-e29b-41d4-a716-446655440000
+          status: ACTIVE
+          updatedAt: 2024-01-20T14:22:00Z
+        - createdAt: 2024-01-15T10:30:00Z
+          name: Sample Item
+          description: A sample item description
+          id: 550e8400-e29b-41d4-a716-446655440000
+          status: ACTIVE
+          updatedAt: 2024-01-20T14:22:00Z
+        first: true
+        totalElements: 150
+      properties:
+        content:
+          items:
+            $ref: '#/components/schemas/UserManagementServiceResponse'
+          type: array
+        totalElements:
+          example: 150
+          format: int64
+          type: integer
+        totalPages:
+          example: 8
+          type: integer
+        size:
+          example: 20
+          type: integer
+        number:
+          example: 0
+          type: integer
+        first:
+          example: true
+          type: boolean
+        last:
+          example: false
+          type: boolean
+      required:
+      - content
+      - first
+      - last
+      - number
+      - size
+      - totalElements
+      - totalPages
+      type: object
+    ErrorResponse:
+      properties:
+        timestamp:
+          example: 2024-01-20T15:30:45Z
+          format: date-time
+          type: string
+        status:
+          example: 400
+          type: integer
+        error:
+          example: Bad Request
+          type: string
+        message:
+          example: Validation failed
+          type: string
+        path:
+          example: /api/v1/items
+          type: string
+      required:
+      - error
+      - message
+      - path
+      - status
+      - timestamp
+      type: object
+  securitySchemes:
+    BearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
