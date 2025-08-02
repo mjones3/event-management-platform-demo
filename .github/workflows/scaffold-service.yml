@@ -14,9 +14,9 @@ on:
         description: 'Description of the service'
         type: string
         default: 'A new microservice'
-      port_context:
-        required: true
-        description: 'Port context (includes run ID)'
+      port_run_id:
+        required: false
+        description: 'Port run ID for logging'
         type: string
 
 env:
@@ -34,47 +34,22 @@ jobs:
           echo "=== INPUTS ==="
           echo "Service Name: ${{ inputs.service_name }}"
           echo "Description: ${{ inputs.description }}"
-          echo "Port Context: ${{ inputs.port_context }}"
+          echo "Port Run ID: ${{ inputs.port_run_id }}"
           echo ""
           echo "=== GITHUB CONTEXT ==="
           echo "Triggered by: ${{ github.actor }}"
           echo "Repository: ${{ github.repository }}"
           echo "Event: ${{ github.event_name }}"
           echo ""
-          echo "=== PORT CONTEXT PARSING ==="
-          if [ -n "${{ inputs.port_context }}" ]; then
-            echo "Port context is not empty"
-            echo "Raw port context: ${{ inputs.port_context }}"
-            # Try to parse the JSON
-            echo '${{ inputs.port_context }}' | jq . || echo "Failed to parse port_context as JSON"
+          echo "=== PORT RUN ID CHECK ==="
+          if [ -n "${{ inputs.port_run_id }}" ]; then
+            echo "✅ Port run ID is present: ${{ inputs.port_run_id }}"
           else
-            echo "Port context is empty"
+            echo "❌ Port run ID is missing"
           fi
 
-      - name: Parse Port context safely
-        id: port_context
-        run: |
-          PORT_CONTEXT='${{ inputs.port_context }}'
-          echo "Raw port_context: $PORT_CONTEXT"
-          
-          if [ -n "$PORT_CONTEXT" ] && [ "$PORT_CONTEXT" != "null" ]; then
-            # Try to extract runId from the JSON
-            RUN_ID=$(echo "$PORT_CONTEXT" | jq -r '.runId // empty' 2>/dev/null || echo "")
-            if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
-              echo "✅ Found runId: $RUN_ID"
-              echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-              echo "has_run_id=true" >> $GITHUB_OUTPUT
-            else
-              echo "❌ No runId found in port_context"
-              echo "has_run_id=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "❌ port_context is empty or null"
-            echo "has_run_id=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Test Port connection
-        if: ${{ steps.port_context.outputs.has_run_id == 'true' }}
+      - name: Test Port connection (simple)
+        if: ${{ inputs.port_run_id != '' }}
         continue-on-error: true
         uses: port-labs/port-github-action@v1
         with:
@@ -82,31 +57,8 @@ jobs:
           clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
           baseUrl: https://api.getport.io
           operation: PATCH_RUN
-          runId: ${{ steps.port_context.outputs.run_id }}
-          logMessage: "TEST: This is a test log message from GitHub Actions"
-
-      - name: Log start to Port
-        if: ${{ steps.port_context.outputs.has_run_id == 'true' }}
-        continue-on-error: true
-        id: port_log_start
-        uses: port-labs/port-github-action@v1
-        with:
-          clientId: ${{ secrets.PORT_CLIENT_ID }}
-          clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
-          baseUrl: https://api.getport.io
-          operation: PATCH_RUN
-          runId: ${{ steps.port_context.outputs.run_id }}
+          runId: ${{ inputs.port_run_id }}
           logMessage: "🚀 Starting scaffolding of service: ${{ inputs.service_name }}"
-      
-      - name: Check Port logging result
-        if: ${{ steps.port_context.outputs.has_run_id == 'true' }}
-        run: |
-          echo "Port log start step result: ${{ steps.port_log_start.outcome }}"
-          if [ "${{ steps.port_log_start.outcome }}" = "success" ]; then
-            echo "✅ Successfully sent log to Port"
-          else
-            echo "❌ Failed to send log to Port"
-          fi
 
       - name: Simulate service creation
         run: |
@@ -117,24 +69,13 @@ jobs:
           echo "✅ Service scaffolding completed!"
 
       - name: Log completion to Port
-        if: ${{ steps.port_context.outputs.has_run_id == 'true' }}
+        if: ${{ inputs.port_run_id != '' }}
         continue-on-error: true
-        id: port_log_end
         uses: port-labs/port-github-action@v1
         with:
           clientId: ${{ secrets.PORT_CLIENT_ID }}
           clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
           baseUrl: https://api.getport.io
           operation: PATCH_RUN
-          runId: ${{ steps.port_context.outputs.run_id }}
+          runId: ${{ inputs.port_run_id }}
           logMessage: "✅ Successfully scaffolded service: ${{ inputs.service_name }}"
-      
-      - name: Check Port completion logging result
-        if: ${{ steps.port_context.outputs.has_run_id == 'true' }}
-        run: |
-          echo "Port log completion step result: ${{ steps.port_log_end.outcome }}"
-          if [ "${{ steps.port_log_end.outcome }}" = "success" ]; then
-            echo "✅ Successfully sent completion log to Port"
-          else
-            echo "❌ Failed to send completion log to Port"
-          fi
