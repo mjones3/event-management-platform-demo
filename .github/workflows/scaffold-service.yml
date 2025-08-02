@@ -73,7 +73,7 @@ jobs:
             echo "has_run_id=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Log start to Port
+      - name: Test Port connection
         if: ${{ steps.port_context.outputs.has_run_id == 'true' }}
         continue-on-error: true
         uses: port-labs/port-github-action@v1
@@ -83,7 +83,30 @@ jobs:
           baseUrl: https://api.getport.io
           operation: PATCH_RUN
           runId: ${{ steps.port_context.outputs.run_id }}
+          logMessage: "TEST: This is a test log message from GitHub Actions"
+
+      - name: Log start to Port
+        if: ${{ steps.port_context.outputs.has_run_id == 'true' }}
+        continue-on-error: true
+        id: port_log_start
+        uses: port-labs/port-github-action@v1
+        with:
+          clientId: ${{ secrets.PORT_CLIENT_ID }}
+          clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
+          baseUrl: https://api.getport.io
+          operation: PATCH_RUN
+          runId: ${{ steps.port_context.outputs.run_id }}
           logMessage: "🚀 Starting scaffolding of service: ${{ inputs.service_name }}"
+      
+      - name: Check Port logging result
+        if: ${{ steps.port_context.outputs.has_run_id == 'true' }}
+        run: |
+          echo "Port log start step result: ${{ steps.port_log_start.outcome }}"
+          if [ "${{ steps.port_log_start.outcome }}" = "success" ]; then
+            echo "✅ Successfully sent log to Port"
+          else
+            echo "❌ Failed to send log to Port"
+          fi
 
       - name: Simulate service creation
         run: |
@@ -96,6 +119,7 @@ jobs:
       - name: Log completion to Port
         if: ${{ steps.port_context.outputs.has_run_id == 'true' }}
         continue-on-error: true
+        id: port_log_end
         uses: port-labs/port-github-action@v1
         with:
           clientId: ${{ secrets.PORT_CLIENT_ID }}
@@ -104,3 +128,13 @@ jobs:
           operation: PATCH_RUN
           runId: ${{ steps.port_context.outputs.run_id }}
           logMessage: "✅ Successfully scaffolded service: ${{ inputs.service_name }}"
+      
+      - name: Check Port completion logging result
+        if: ${{ steps.port_context.outputs.has_run_id == 'true' }}
+        run: |
+          echo "Port log completion step result: ${{ steps.port_log_end.outcome }}"
+          if [ "${{ steps.port_log_end.outcome }}" = "success" ]; then
+            echo "✅ Successfully sent completion log to Port"
+          else
+            echo "❌ Failed to send completion log to Port"
+          fi
