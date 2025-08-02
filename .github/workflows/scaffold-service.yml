@@ -10,10 +10,15 @@ on:
         description: 'The name of the new service'
         type: string
       description:
-        required: false
+        required: true
         description: 'Description of the service'
         type: string
         default: 'A new microservice'
+      openapi_spec_url:           
+        required: true
+        description: 'URL to OpenAPI specification (leave empty to auto-generate)'
+        type: string
+        default: ''
       port_run_id:
         required: false
         description: 'Port run ID for logging'
