@@ -81,10 +81,9 @@ jobs:
           # Download your actual OpenAPI spec
           echo "📋 Fetching OpenAPI specification..."
           
-          # Option A1: If you have the spec in a public GitHub repo
-          # Replace with your actual repository and path
+          # Try to download from various locations
           if wget https://raw.githubusercontent.com/mjones3/event-management-platform-demo/main/api-specs/user-service.yaml -O api-spec.yaml 2>/dev/null; then
-            echo "✅ Downloaded OpenAPI spec from repository"
+            echo "✅ Downloaded OpenAPI spec from api-specs directory"
           elif wget https://raw.githubusercontent.com/mjones3/event-management-platform-demo/main/openapi/user-service.yaml -O api-spec.yaml 2>/dev/null; then
             echo "✅ Downloaded OpenAPI spec from openapi directory"
           elif wget https://raw.githubusercontent.com/mjones3/event-management-platform-demo/main/docs/api/user-service.yaml -O api-spec.yaml 2>/dev/null; then
@@ -93,10 +92,13 @@ jobs:
             echo "⚠️  Could not find existing OpenAPI spec, creating a template based on service name..."
             
             # Create a generic microservice spec based on the service name
+            SERVICE_NAME_UPPER="$(echo ${SERVICE_NAME} | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
+            SERVICE_NAME_CAMEL="$(echo ${SERVICE_NAME} | sed 's/-\([a-z]\)/\U\1/g' | sed 's/^\([a-z]\)/\U\1/')"
+            
             cat > api-spec.yaml << EOF
           openapi: 3.0.3
           info:
-            title: ${SERVICE_NAME^} Service API
+            title: ${SERVICE_NAME_CAMEL} Service API
             description: ${{ inputs.description }}
             version: 1.0.0
             contact:
@@ -132,7 +134,7 @@ jobs:
                 summary: List ${SERVICE_NAME}s with pagination
                 description: Retrieve a paginated list of ${SERVICE_NAME}s with optional filtering
                 tags:
-                  - ${SERVICE_NAME^}s
+                  - ${SERVICE_NAME_CAMEL}s
                 parameters:
                   - name: page
                     in: query
@@ -149,369 +151,6 @@ jobs:
                       minimum: 1
                       maximum: 100
                       default: 20
-                  - name: sort
-                    in: query
-                    description: Sort criteria (field,direction)
-                    schema:
-                      type: array
-                      items:
-                        type: string
-                        pattern: '^[a-zA-Z][a-zA-Z0-9]*,(asc|desc)\
-
-      - name: Enhance generated service with additional features
-        run: |
-          SERVICE_NAME="${{ inputs.service_name }}"
-          cd "$SERVICE_NAME"
-          
-          # Add additional dependencies to pom.xml
-          # This adds database, security, and other microservice dependencies
-          cat > pom-additions.xml << 'EOF'
-              <!-- Additional Event Platform Dependencies -->
-              <dependency>
-                  <groupId>org.springframework.boot</groupId>
-                  <artifactId>spring-boot-starter-data-jpa</artifactId>
-              </dependency>
-              <dependency>
-                  <groupId>org.springframework.boot</groupId>
-                  <artifactId>spring-boot-starter-security</artifactId>
-              </dependency>
-              <dependency>
-                  <groupId>org.springframework.boot</groupId>
-                  <artifactId>spring-boot-starter-actuator</artifactId>
-              </dependency>
-              <dependency>
-                  <groupId>org.springframework.cloud</groupId>
-                  <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
-              </dependency>
-              <dependency>
-                  <groupId>org.postgresql</groupId>
-                  <artifactId>postgresql</artifactId>
-                  <scope>runtime</scope>
-              </dependency>
-              <dependency>
-                  <groupId>org.springframework.boot</groupId>
-                  <artifactId>spring-boot-starter-validation</artifactId>
-              </dependency>
-              <dependency>
-                  <groupId>io.micrometer</groupId>
-                  <artifactId>micrometer-registry-prometheus</artifactId>
-              </dependency>
-          EOF
-          
-          # Insert additional dependencies before </dependencies>
-          sed -i '/<\/dependencies>/i\\t<!-- Additional Event Platform Dependencies -->' pom.xml
-          sed -i '/<\/dependencies>/i\\t<dependency>' pom.xml
-          sed -i '/<\/dependencies>/i\\t\t<groupId>org.springframework.boot</groupId>' pom.xml
-          sed -i '/<\/dependencies>/i\\t\t<artifactId>spring-boot-starter-data-jpa</artifactId>' pom.xml
-          sed -i '/<\/dependencies>/i\\t</dependency>' pom.xml
-          # ... (continue for other dependencies)
-          
-          # Create application.yml with microservice configuration
-          cat > src/main/resources/application.yml << EOF
-          server:
-            port: 8080
-          
-          spring:
-            application:
-              name: $SERVICE_NAME
-            datasource:
-              url: jdbc:postgresql://\${DB_HOST:localhost}:\${DB_PORT:5432}/\${DB_NAME:${SERVICE_NAME//-/_}_db}
-              username: \${DB_USERNAME:postgres}
-              password: \${DB_PASSWORD:password}
-            jpa:
-              hibernate:
-                ddl-auto: \${JPA_DDL_AUTO:validate}
-              show-sql: \${JPA_SHOW_SQL:false}
-              properties:
-                hibernate:
-                  format_sql: true
-            
-          eureka:
-            client:
-              service-url:
-                defaultZone: \${EUREKA_URL:http://localhost:8761/eureka}
-            instance:
-              prefer-ip-address: true
-          
-          management:
-            endpoints:
-              web:
-                exposure:
-                  include: health,info,metrics,prometheus
-            endpoint:
-              health:
-                show-details: always
-            metrics:
-              export:
-                prometheus:
-                  enabled: true
-          
-          logging:
-            level:
-              com.eventplatform: \${LOG_LEVEL:INFO}
-              org.springframework.web: \${WEB_LOG_LEVEL:WARN}
-              org.hibernate.SQL: \${SQL_LOG_LEVEL:WARN}
-          
-          # OpenAPI Documentation
-          springdoc:
-            api-docs:
-              path: /api-docs
-            swagger-ui:
-              path: /swagger-ui.html
-              operations-sorter: method
-          EOF
-          
-          # Create Dockerfile
-          cat > Dockerfile << 'EOF'
-          FROM openjdk:17-jdk-slim
-          
-          WORKDIR /app
-          
-          COPY target/*.jar app.jar
-          
-          EXPOSE 8080
-          
-          ENTRYPOINT ["java", "-jar", "app.jar"]
-          EOF
-          
-          # Create docker-compose.yml for local development
-          cat > docker-compose.yml << EOF
-          version: '3.8'
-          services:
-            ${SERVICE_NAME}:
-              build: .
-              ports:
-                - "8080:8080"
-              environment:
-                - DB_HOST=postgres
-                - DB_USERNAME=postgres
-                - DB_PASSWORD=password
-                - DB_NAME=${SERVICE_NAME//-/_}_db
-              depends_on:
-                - postgres
-            
-            postgres:
-              image: postgres:15
-              environment:
-                - POSTGRES_DB=${SERVICE_NAME//-/_}_db
-                - POSTGRES_USER=postgres
-                - POSTGRES_PASSWORD=password
-              ports:
-                - "5432:5432"
-              volumes:
-                - postgres_data:/var/lib/postgresql/data
-          
-          volumes:
-            postgres_data:
-          EOF
-          
-          echo "✅ Enhanced service with microservice features!"
-
-      - name: Create GitHub Repository and push generated code
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          SERVICE_NAME="${{ inputs.service_name }}"
-          
-          # Create new repository
-          gh repo create "${{ github.repository_owner }}/$SERVICE_NAME" \
-            --description "${{ inputs.description }} - Generated from OpenAPI specification" \
-            --public
-          
-          # Clone the empty repository
-          git clone "https://github.com/${{ github.repository_owner }}/$SERVICE_NAME.git" temp-repo
-          
-          # Copy generated code to the cloned repo
-          cp -r "$SERVICE_NAME"/* temp-repo/
-          cd temp-repo
-          
-          # Create comprehensive README
-          cat > README.md << EOF
-          # $SERVICE_NAME
-          
-          ${{ inputs.description }}
-          
-          This microservice was generated automatically from an OpenAPI 3.0 specification using the Event Management Platform scaffolding system.
-          
-          ## 🚀 Features
-          
-          - **RESTful API** - Generated from OpenAPI spec
-          - **Spring Boot 3.x** - Latest Spring Boot framework
-          - **PostgreSQL Integration** - Production-ready database setup
-          - **Docker Support** - Containerized deployment
-          - **Service Discovery** - Eureka client integration
-          - **Monitoring** - Actuator endpoints with Prometheus metrics
-          - **API Documentation** - Interactive Swagger UI
-          - **Validation** - Bean validation with comprehensive error handling
-          - **Security Ready** - Spring Security integration
-          
-          ## 📋 API Endpoints
-          
-          | Method | Endpoint | Description |
-          |--------|----------|-------------|
-          | GET | \`/api/v1/health\` | Health check |
-          | GET | \`/api/v1/${SERVICE_NAME}s\` | List ${SERVICE_NAME}s with pagination |
-          | POST | \`/api/v1/${SERVICE_NAME}s\` | Create new ${SERVICE_NAME} |
-          | GET | \`/api/v1/${SERVICE_NAME}s/{id}\` | Get ${SERVICE_NAME} by ID |
-          | PUT | \`/api/v1/${SERVICE_NAME}s/{id}\` | Update ${SERVICE_NAME} |
-          | DELETE | \`/api/v1/${SERVICE_NAME}s/{id}\` | Delete ${SERVICE_NAME} |
-          
-          ## 🛠️ Development Setup
-          
-          ### Prerequisites
-          - Java 17+
-          - Maven 3.6+
-          - Docker & Docker Compose
-          - PostgreSQL 15+ (or use Docker Compose)
-          
-          ### Quick Start
-          
-          1. **Clone the repository:**
-             \`\`\`bash
-             git clone https://github.com/${{ github.repository_owner }}/$SERVICE_NAME.git
-             cd $SERVICE_NAME
-             \`\`\`
-          
-          2. **Start with Docker Compose:**
-             \`\`\`bash
-             docker-compose up -d
-             \`\`\`
-          
-          3. **Or run locally:**
-             \`\`\`bash
-             # Start PostgreSQL
-             docker run -d --name postgres \\
-               -e POSTGRES_DB=${SERVICE_NAME//-/_}_db \\
-               -e POSTGRES_USER=postgres \\
-               -e POSTGRES_PASSWORD=password \\
-               -p 5432:5432 postgres:15
-             
-             # Run the application
-             mvn spring-boot:run
-             \`\`\`
-          
-          4. **Test the API:**
-             \`\`\`bash
-             # Health check
-             curl http://localhost:8080/api/v1/health
-             
-             # Create a ${SERVICE_NAME}
-             curl -X POST http://localhost:8080/api/v1/${SERVICE_NAME}s \\
-               -H "Content-Type: application/json" \\
-               -d '{"name":"Test ${SERVICE_NAME}","description":"Test description"}'
-             \`\`\`
-          
-          ## 📚 Documentation
-          
-          - **API Documentation:** http://localhost:8080/swagger-ui.html
-          - **OpenAPI Spec:** http://localhost:8080/api-docs
-          - **Health Check:** http://localhost:8080/actuator/health
-          - **Metrics:** http://localhost:8080/actuator/prometheus
-          
-          ## ⚙️ Configuration
-          
-          Key environment variables:
-          
-          | Variable | Default | Description |
-          |----------|---------|-------------|
-          | \`DB_HOST\` | localhost | Database host |
-          | \`DB_PORT\` | 5432 | Database port |
-          | \`DB_USERNAME\` | postgres | Database username |
-          | \`DB_PASSWORD\` | password | Database password |
-          | \`DB_NAME\` | ${SERVICE_NAME//-/_}_db | Database name |
-          | \`EUREKA_URL\` | http://localhost:8761/eureka | Eureka server URL |
-          | \`LOG_LEVEL\` | INFO | Application log level |
-          
-          ## 🏗️ Architecture
-          
-          This service follows the Event Management Platform microservice architecture:
-          
-          - **Controller Layer** - REST endpoints (generated from OpenAPI)
-          - **Service Layer** - Business logic (implement your business rules here)
-          - **Repository Layer** - Data access (JPA repositories)
-          - **Model Layer** - DTOs and entities (generated from OpenAPI schemas)
-          
-          ## 🚀 Deployment
-          
-          ### Docker
-          \`\`\`bash
-          # Build image
-          mvn clean package
-          docker build -t $SERVICE_NAME .
-          
-          # Run container
-          docker run -p 8080:8080 \\
-            -e DB_HOST=your-db-host \\
-            -e DB_USERNAME=your-username \\
-            -e DB_PASSWORD=your-password \\
-            $SERVICE_NAME
-          \`\`\`
-          
-          ### Kubernetes
-          See \`k8s/\` directory for Kubernetes deployment manifests.
-          
-          ## 🔧 Next Steps
-          
-          1. **Implement Business Logic** - Add your service logic in the service layer
-          2. **Create JPA Entities** - Define your database entities
-          3. **Add Tests** - Write unit and integration tests
-          4. **Configure Security** - Set up authentication and authorization
-          5. **Add Monitoring** - Configure application metrics and logging
-          
-          ## 📝 Generated Information
-          
-          - **Generated by:** ${{ github.actor }}
-          - **Generated on:** $(date)
-          - **Template:** Event Management Platform OpenAPI Generator
-          - **OpenAPI Version:** 3.0.3
-          - **Spring Boot Version:** 3.2.0
-          
-          ## 🤝 Contributing
-          
-          This service is part of the Event Management Platform. Please follow the platform's coding standards and contribution guidelines.
-          EOF
-          
-          # Initial commit
-          git add .
-          git commit -m "🎉 Initial commit: OpenAPI-generated $SERVICE_NAME service
-
-          Generated Spring Boot microservice with:
-          ✅ RESTful API from OpenAPI specification  
-          ✅ PostgreSQL database integration
-          ✅ Docker containerization
-          ✅ Service discovery (Eureka)
-          ✅ Health checks and monitoring
-          ✅ API documentation (Swagger)
-          ✅ Validation and error handling
-          ✅ Production-ready configuration
-          
-          🔧 Next steps:
-          - Implement business logic in service layer
-          - Create JPA entities and repositories  
-          - Add comprehensive tests
-          - Configure security and permissions
-          
-          Generated by: ${{ github.actor }}
-          Platform: Event Management Platform
-          Template: OpenAPI Generator"
-          
-          git push origin main
-          
-          echo "✅ Repository '$SERVICE_NAME' created with OpenAPI-generated code!"
-          echo "🌐 Repository URL: https://github.com/${{ github.repository_owner }}/$SERVICE_NAME"
-          echo "📖 API Documentation: http://localhost:8080/swagger-ui.html (after running)"
-
-      - name: Log completion to Port
-        if: ${{ inputs.port_run_id != '' }}
-        continue-on-error: true
-        uses: port-labs/port-github-action@v1
-        with:
-          clientId: ${{ secrets.PORT_CLIENT_ID }}
-          clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
-          baseUrl: https://api.getport.io
-          operation: PATCH_RUN
-          runId: ${{ inputs.port_run_id }}
-          logMessage: "✅ Successfully scaffolded service: ${{ inputs.service_name }}"
                   - name: search
                     in: query
                     description: Search term
@@ -524,7 +163,7 @@ jobs:
                     content:
                       application/json:
                         schema:
-                          \$ref: '#/components/schemas/Paged${SERVICE_NAME^}Response'
+                          \$ref: '#/components/schemas/Paged${SERVICE_NAME_CAMEL}Response'
                   '400':
                     \$ref: '#/components/responses/BadRequest'
                   '401':
@@ -533,20 +172,20 @@ jobs:
                 summary: Create a new ${SERVICE_NAME}
                 description: Create a new ${SERVICE_NAME} in the system
                 tags:
-                  - ${SERVICE_NAME^}s
+                  - ${SERVICE_NAME_CAMEL}s
                 requestBody:
                   required: true
                   content:
                     application/json:
                       schema:
-                        \$ref: '#/components/schemas/Create${SERVICE_NAME^}Request'
+                        \$ref: '#/components/schemas/Create${SERVICE_NAME_CAMEL}Request'
                 responses:
                   '201':
-                    description: ${SERVICE_NAME^} created successfully
+                    description: ${SERVICE_NAME_CAMEL} created successfully
                     content:
                       application/json:
                         schema:
-                          \$ref: '#/components/schemas/${SERVICE_NAME^}Response'
+                          \$ref: '#/components/schemas/${SERVICE_NAME_CAMEL}Response'
                   '400':
                     \$ref: '#/components/responses/BadRequest'
                   '401':
@@ -557,22 +196,22 @@ jobs:
                 summary: Get ${SERVICE_NAME} by ID
                 description: Retrieve detailed information about a specific ${SERVICE_NAME}
                 tags:
-                  - ${SERVICE_NAME^}s
+                  - ${SERVICE_NAME_CAMEL}s
                 parameters:
                   - name: id
                     in: path
                     required: true
-                    description: ${SERVICE_NAME^} ID
+                    description: ${SERVICE_NAME_CAMEL} ID
                     schema:
                       type: string
                       format: uuid
                 responses:
                   '200':
-                    description: ${SERVICE_NAME^} found
+                    description: ${SERVICE_NAME_CAMEL} found
                     content:
                       application/json:
                         schema:
-                          \$ref: '#/components/schemas/${SERVICE_NAME^}Response'
+                          \$ref: '#/components/schemas/${SERVICE_NAME_CAMEL}Response'
                   '404':
                     \$ref: '#/components/responses/NotFound'
                   '401':
@@ -581,7 +220,7 @@ jobs:
                 summary: Update ${SERVICE_NAME}
                 description: Update ${SERVICE_NAME} information (full update)
                 tags:
-                  - ${SERVICE_NAME^}s
+                  - ${SERVICE_NAME_CAMEL}s
                 parameters:
                   - name: id
                     in: path
@@ -594,43 +233,14 @@ jobs:
                   content:
                     application/json:
                       schema:
-                        \$ref: '#/components/schemas/Update${SERVICE_NAME^}Request'
+                        \$ref: '#/components/schemas/Update${SERVICE_NAME_CAMEL}Request'
                 responses:
                   '200':
-                    description: ${SERVICE_NAME^} updated successfully
+                    description: ${SERVICE_NAME_CAMEL} updated successfully
                     content:
                       application/json:
                         schema:
-                          \$ref: '#/components/schemas/${SERVICE_NAME^}Response'
-                  '400':
-                    \$ref: '#/components/responses/BadRequest'
-                  '404':
-                    \$ref: '#/components/responses/NotFound'
-              patch:
-                summary: Partially update ${SERVICE_NAME}
-                description: Update specific ${SERVICE_NAME} fields
-                tags:
-                  - ${SERVICE_NAME^}s
-                parameters:
-                  - name: id
-                    in: path
-                    required: true
-                    schema:
-                      type: string
-                      format: uuid
-                requestBody:
-                  required: true
-                  content:
-                    application/json:
-                      schema:
-                        \$ref: '#/components/schemas/Patch${SERVICE_NAME^}Request'
-                responses:
-                  '200':
-                    description: ${SERVICE_NAME^} updated successfully
-                    content:
-                      application/json:
-                        schema:
-                          \$ref: '#/components/schemas/${SERVICE_NAME^}Response'
+                          \$ref: '#/components/schemas/${SERVICE_NAME_CAMEL}Response'
                   '400':
                     \$ref: '#/components/responses/BadRequest'
                   '404':
@@ -639,7 +249,7 @@ jobs:
                 summary: Delete ${SERVICE_NAME}
                 description: Delete a ${SERVICE_NAME}
                 tags:
-                  - ${SERVICE_NAME^}s
+                  - ${SERVICE_NAME_CAMEL}s
                 parameters:
                   - name: id
                     in: path
@@ -649,7 +259,7 @@ jobs:
                       format: uuid
                 responses:
                   '204':
-                    description: ${SERVICE_NAME^} deleted successfully
+                    description: ${SERVICE_NAME_CAMEL} deleted successfully
                   '404':
                     \$ref: '#/components/responses/NotFound'
                   '401':
@@ -683,7 +293,7 @@ jobs:
                   - service
                   - timestamp
               
-              ${SERVICE_NAME^}Response:
+              ${SERVICE_NAME_CAMEL}Response:
                 type: object
                 properties:
                   id:
@@ -692,7 +302,7 @@ jobs:
                     example: "550e8400-e29b-41d4-a716-446655440000"
                   name:
                     type: string
-                    example: "Sample ${SERVICE_NAME^}"
+                    example: "Sample ${SERVICE_NAME_CAMEL}"
                   description:
                     type: string
                     example: "A sample ${SERVICE_NAME} description"
@@ -708,37 +318,28 @@ jobs:
                     type: string
                     format: date-time
                     example: "2024-01-20T14:22:00Z"
-                  metadata:
-                    type: object
-                    additionalProperties: true
-                    example:
-                      category: "general"
-                      priority: "high"
                 required:
                   - id
                   - name
                   - status
                   - createdAt
               
-              Create${SERVICE_NAME^}Request:
+              Create${SERVICE_NAME_CAMEL}Request:
                 type: object
                 properties:
                   name:
                     type: string
                     minLength: 1
                     maxLength: 100
-                    example: "New ${SERVICE_NAME^}"
+                    example: "New ${SERVICE_NAME_CAMEL}"
                   description:
                     type: string
                     maxLength: 500
                     example: "Description of the new ${SERVICE_NAME}"
-                  metadata:
-                    type: object
-                    additionalProperties: true
                 required:
                   - name
               
-              Update${SERVICE_NAME^}Request:
+              Update${SERVICE_NAME_CAMEL}Request:
                 type: object
                 properties:
                   name:
@@ -751,35 +352,14 @@ jobs:
                   status:
                     type: string
                     enum: [ACTIVE, INACTIVE, PENDING]
-                  metadata:
-                    type: object
-                    additionalProperties: true
               
-              Patch${SERVICE_NAME^}Request:
-                type: object
-                properties:
-                  name:
-                    type: string
-                    minLength: 1
-                    maxLength: 100
-                  description:
-                    type: string
-                    maxLength: 500
-                  status:
-                    type: string
-                    enum: [ACTIVE, INACTIVE, PENDING]
-                  metadata:
-                    type: object
-                    additionalProperties: true
-                additionalProperties: false
-              
-              Paged${SERVICE_NAME^}Response:
+              Paged${SERVICE_NAME_CAMEL}Response:
                 type: object
                 properties:
                   content:
                     type: array
                     items:
-                      \$ref: '#/components/schemas/${SERVICE_NAME^}Response'
+                      \$ref: '#/components/schemas/${SERVICE_NAME_CAMEL}Response'
                   totalElements:
                     type: integer
                     format: int64
@@ -799,12 +379,6 @@ jobs:
                   last:
                     type: boolean
                     example: false
-                  numberOfElements:
-                    type: integer
-                    example: 20
-                  empty:
-                    type: boolean
-                    example: false
                 required:
                   - content
                   - totalElements
@@ -813,8 +387,6 @@ jobs:
                   - number
                   - first
                   - last
-                  - numberOfElements
-                  - empty
               
               ErrorResponse:
                 type: object
@@ -831,13 +403,10 @@ jobs:
                     example: "Bad Request"
                   message:
                     type: string
-                    example: "Validation failed for one or more fields"
+                    example: "Validation failed"
                   path:
                     type: string
                     example: "/api/v1/${SERVICE_NAME}s"
-                  traceId:
-                    type: string
-                    example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 required:
                   - timestamp
                   - status
@@ -847,14 +416,14 @@ jobs:
             
             responses:
               BadRequest:
-                description: Bad request - validation errors or malformed input
+                description: Bad request - validation errors
                 content:
                   application/json:
                     schema:
                       \$ref: '#/components/schemas/ErrorResponse'
               
               Unauthorized:
-                description: Authentication required or token invalid
+                description: Authentication required
                 content:
                   application/json:
                     schema:
@@ -868,15 +437,15 @@ jobs:
                       \$ref: '#/components/schemas/ErrorResponse'
           
           tags:
-            - name: ${SERVICE_NAME^}s
-              description: ${SERVICE_NAME^} management operations
+            - name: ${SERVICE_NAME_CAMEL}s
+              description: ${SERVICE_NAME_CAMEL} management operations
             - name: Health
-              description: Service health and status endpoints
+              description: Service health endpoints
           EOF
           fi
           
-          echo "📄 Using OpenAPI specification:"
-          echo "$(head -10 api-spec.yaml)"
+          echo "📄 Generated OpenAPI specification preview:"
+          echo "$(head -15 api-spec.yaml)"
           echo "..."
           
           # Generate Spring Boot application
@@ -885,80 +454,16 @@ jobs:
             -i api-spec.yaml \
             -g spring \
             -o . \
-            --additional-properties=\
-          packageName=com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.'),\
-          apiPackage=com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.').controller,\
-          modelPackage=com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.').model,\
-          configPackage=com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.').config,\
-          basePackage=com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.'),\
-          groupId=com.eventplatform,\
-          artifactId=$SERVICE_NAME,\
-          artifactVersion=1.0.0,\
-          java8=false,\
-          dateLibrary=java8,\
-          interfaceOnly=false,\
-          skipDefaultInterface=false,\
-          useTags=true,\
-          singleContentTypes=true,\
-          performBeanValidation=true,\
-          useBeanValidation=true,\
-          library=spring-boot,\
-          documentationProvider=springdoc,\
-          openApiNullable=false,\
-          hideGenerationTimestamp=true,\
-          removeEnumValuePrefix=false
+            --additional-properties=packageName=com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.'),apiPackage=com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.').controller,modelPackage=com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.').model,configPackage=com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.').config,basePackage=com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.'),groupId=com.eventplatform,artifactId=$SERVICE_NAME,artifactVersion=1.0.0,java8=false,dateLibrary=java8,interfaceOnly=false,skipDefaultInterface=false,useTags=true,singleContentTypes=true,performBeanValidation=true,useBeanValidation=true,library=spring-boot,documentationProvider=springdoc,openApiNullable=false,hideGenerationTimestamp=true
           
           echo "✅ Spring Boot service generated from OpenAPI spec!"
 
-      - name: Enhance generated service with additional features
+      - name: Enhance generated service with microservice features
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
           
-          # Add additional dependencies to pom.xml
-          # This adds database, security, and other microservice dependencies
-          cat > pom-additions.xml << 'EOF'
-              <!-- Additional Event Platform Dependencies -->
-              <dependency>
-                  <groupId>org.springframework.boot</groupId>
-                  <artifactId>spring-boot-starter-data-jpa</artifactId>
-              </dependency>
-              <dependency>
-                  <groupId>org.springframework.boot</groupId>
-                  <artifactId>spring-boot-starter-security</artifactId>
-              </dependency>
-              <dependency>
-                  <groupId>org.springframework.boot</groupId>
-                  <artifactId>spring-boot-starter-actuator</artifactId>
-              </dependency>
-              <dependency>
-                  <groupId>org.springframework.cloud</groupId>
-                  <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
-              </dependency>
-              <dependency>
-                  <groupId>org.postgresql</groupId>
-                  <artifactId>postgresql</artifactId>
-                  <scope>runtime</scope>
-              </dependency>
-              <dependency>
-                  <groupId>org.springframework.boot</groupId>
-                  <artifactId>spring-boot-starter-validation</artifactId>
-              </dependency>
-              <dependency>
-                  <groupId>io.micrometer</groupId>
-                  <artifactId>micrometer-registry-prometheus</artifactId>
-              </dependency>
-          EOF
-          
-          # Insert additional dependencies before </dependencies>
-          sed -i '/<\/dependencies>/i\\t<!-- Additional Event Platform Dependencies -->' pom.xml
-          sed -i '/<\/dependencies>/i\\t<dependency>' pom.xml
-          sed -i '/<\/dependencies>/i\\t\t<groupId>org.springframework.boot</groupId>' pom.xml
-          sed -i '/<\/dependencies>/i\\t\t<artifactId>spring-boot-starter-data-jpa</artifactId>' pom.xml
-          sed -i '/<\/dependencies>/i\\t</dependency>' pom.xml
-          # ... (continue for other dependencies)
-          
-          # Create application.yml with microservice configuration
+          # Create enhanced application.yml
           cat > src/main/resources/application.yml << EOF
           server:
             port: 8080
@@ -978,13 +483,6 @@ jobs:
                 hibernate:
                   format_sql: true
             
-          eureka:
-            client:
-              service-url:
-                defaultZone: \${EUREKA_URL:http://localhost:8761/eureka}
-            instance:
-              prefer-ip-address: true
-          
           management:
             endpoints:
               web:
@@ -993,24 +491,17 @@ jobs:
             endpoint:
               health:
                 show-details: always
-            metrics:
-              export:
-                prometheus:
-                  enabled: true
           
           logging:
             level:
               com.eventplatform: \${LOG_LEVEL:INFO}
               org.springframework.web: \${WEB_LOG_LEVEL:WARN}
-              org.hibernate.SQL: \${SQL_LOG_LEVEL:WARN}
           
-          # OpenAPI Documentation
           springdoc:
             api-docs:
               path: /api-docs
             swagger-ui:
               path: /swagger-ui.html
-              operations-sorter: method
           EOF
           
           # Create Dockerfile
@@ -1018,15 +509,13 @@ jobs:
           FROM openjdk:17-jdk-slim
           
           WORKDIR /app
-          
           COPY target/*.jar app.jar
-          
           EXPOSE 8080
           
           ENTRYPOINT ["java", "-jar", "app.jar"]
           EOF
           
-          # Create docker-compose.yml for local development
+          # Create docker-compose.yml
           cat > docker-compose.yml << EOF
           version: '3.8'
           services:
@@ -1077,181 +566,52 @@ jobs:
           cp -r "$SERVICE_NAME"/* temp-repo/
           cd temp-repo
           
-          # Create comprehensive README
+          # Create README
           cat > README.md << EOF
           # $SERVICE_NAME
           
           ${{ inputs.description }}
           
-          This microservice was generated automatically from an OpenAPI 3.0 specification using the Event Management Platform scaffolding system.
+          Generated Spring Boot microservice from OpenAPI specification.
           
-          ## 🚀 Features
+          ## Quick Start
           
-          - **RESTful API** - Generated from OpenAPI spec
-          - **Spring Boot 3.x** - Latest Spring Boot framework
-          - **PostgreSQL Integration** - Production-ready database setup
-          - **Docker Support** - Containerized deployment
-          - **Service Discovery** - Eureka client integration
-          - **Monitoring** - Actuator endpoints with Prometheus metrics
-          - **API Documentation** - Interactive Swagger UI
-          - **Validation** - Bean validation with comprehensive error handling
-          - **Security Ready** - Spring Security integration
-          
-          ## 📋 API Endpoints
-          
-          | Method | Endpoint | Description |
-          |--------|----------|-------------|
-          | GET | \`/api/v1/health\` | Health check |
-          | GET | \`/api/v1/${SERVICE_NAME}s\` | List ${SERVICE_NAME}s with pagination |
-          | POST | \`/api/v1/${SERVICE_NAME}s\` | Create new ${SERVICE_NAME} |
-          | GET | \`/api/v1/${SERVICE_NAME}s/{id}\` | Get ${SERVICE_NAME} by ID |
-          | PUT | \`/api/v1/${SERVICE_NAME}s/{id}\` | Update ${SERVICE_NAME} |
-          | DELETE | \`/api/v1/${SERVICE_NAME}s/{id}\` | Delete ${SERVICE_NAME} |
-          
-          ## 🛠️ Development Setup
-          
-          ### Prerequisites
-          - Java 17+
-          - Maven 3.6+
-          - Docker & Docker Compose
-          - PostgreSQL 15+ (or use Docker Compose)
-          
-          ### Quick Start
-          
-          1. **Clone the repository:**
-             \`\`\`bash
-             git clone https://github.com/${{ github.repository_owner }}/$SERVICE_NAME.git
-             cd $SERVICE_NAME
-             \`\`\`
-          
-          2. **Start with Docker Compose:**
+          1. **Start with Docker Compose:**
              \`\`\`bash
              docker-compose up -d
              \`\`\`
           
-          3. **Or run locally:**
+          2. **Test the API:**
              \`\`\`bash
-             # Start PostgreSQL
-             docker run -d --name postgres \\
-               -e POSTGRES_DB=${SERVICE_NAME//-/_}_db \\
-               -e POSTGRES_USER=postgres \\
-               -e POSTGRES_PASSWORD=password \\
-               -p 5432:5432 postgres:15
-             
-             # Run the application
-             mvn spring-boot:run
-             \`\`\`
-          
-          4. **Test the API:**
-             \`\`\`bash
-             # Health check
              curl http://localhost:8080/api/v1/health
-             
-             # Create a ${SERVICE_NAME}
-             curl -X POST http://localhost:8080/api/v1/${SERVICE_NAME}s \\
-               -H "Content-Type: application/json" \\
-               -d '{"name":"Test ${SERVICE_NAME}","description":"Test description"}'
              \`\`\`
           
-          ## 📚 Documentation
+          3. **View API Documentation:**
+             \`\`\`
+             http://localhost:8080/swagger-ui.html
+             \`\`\`
           
-          - **API Documentation:** http://localhost:8080/swagger-ui.html
-          - **OpenAPI Spec:** http://localhost:8080/api-docs
-          - **Health Check:** http://localhost:8080/actuator/health
-          - **Metrics:** http://localhost:8080/actuator/prometheus
-          
-          ## ⚙️ Configuration
-          
-          Key environment variables:
-          
-          | Variable | Default | Description |
-          |----------|---------|-------------|
-          | \`DB_HOST\` | localhost | Database host |
-          | \`DB_PORT\` | 5432 | Database port |
-          | \`DB_USERNAME\` | postgres | Database username |
-          | \`DB_PASSWORD\` | password | Database password |
-          | \`DB_NAME\` | ${SERVICE_NAME//-/_}_db | Database name |
-          | \`EUREKA_URL\` | http://localhost:8761/eureka | Eureka server URL |
-          | \`LOG_LEVEL\` | INFO | Application log level |
-          
-          ## 🏗️ Architecture
-          
-          This service follows the Event Management Platform microservice architecture:
-          
-          - **Controller Layer** - REST endpoints (generated from OpenAPI)
-          - **Service Layer** - Business logic (implement your business rules here)
-          - **Repository Layer** - Data access (JPA repositories)
-          - **Model Layer** - DTOs and entities (generated from OpenAPI schemas)
-          
-          ## 🚀 Deployment
-          
-          ### Docker
-          \`\`\`bash
-          # Build image
-          mvn clean package
-          docker build -t $SERVICE_NAME .
-          
-          # Run container
-          docker run -p 8080:8080 \\
-            -e DB_HOST=your-db-host \\
-            -e DB_USERNAME=your-username \\
-            -e DB_PASSWORD=your-password \\
-            $SERVICE_NAME
-          \`\`\`
-          
-          ### Kubernetes
-          See \`k8s/\` directory for Kubernetes deployment manifests.
-          
-          ## 🔧 Next Steps
-          
-          1. **Implement Business Logic** - Add your service logic in the service layer
-          2. **Create JPA Entities** - Define your database entities
-          3. **Add Tests** - Write unit and integration tests
-          4. **Configure Security** - Set up authentication and authorization
-          5. **Add Monitoring** - Configure application metrics and logging
-          
-          ## 📝 Generated Information
-          
-          - **Generated by:** ${{ github.actor }}
-          - **Generated on:** $(date)
-          - **Template:** Event Management Platform OpenAPI Generator
-          - **OpenAPI Version:** 3.0.3
-          - **Spring Boot Version:** 3.2.0
-          
-          ## 🤝 Contributing
-          
-          This service is part of the Event Management Platform. Please follow the platform's coding standards and contribution guidelines.
+          ## Generated by
+          - **User:** ${{ github.actor }}
+          - **Date:** $(date)
+          - **Platform:** Event Management Platform
           EOF
           
           # Initial commit
           git add .
-          git commit -m "🎉 Initial commit: OpenAPI-generated $SERVICE_NAME service
-
-          Generated Spring Boot microservice with:
-          ✅ RESTful API from OpenAPI specification  
-          ✅ PostgreSQL database integration
-          ✅ Docker containerization
-          ✅ Service discovery (Eureka)
-          ✅ Health checks and monitoring
-          ✅ API documentation (Swagger)
-          ✅ Validation and error handling
-          ✅ Production-ready configuration
-          
-          🔧 Next steps:
-          - Implement business logic in service layer
-          - Create JPA entities and repositories  
-          - Add comprehensive tests
-          - Configure security and permissions
-          
-          Generated by: ${{ github.actor }}
-          Platform: Event Management Platform
-          Template: OpenAPI Generator"
-          
+          git commit -m "🎉 Initial commit: OpenAPI-generated $SERVICE_NAME service"
           git push origin main
           
-          echo "✅ Repository '$SERVICE_NAME' created with OpenAPI-generated code!"
-          echo "🌐 Repository URL: https://github.com/${{ github.repository_owner }}/$SERVICE_NAME"
-          echo "📖 API Documentation: http://localhost:8080/swagger-ui.html (after running)"
+          echo "✅ Repository '$SERVICE_NAME' created!"
+          echo "🌐 URL: https://github.com/${{ github.repository_owner }}/$SERVICE_NAME"
+
+      - name: Simulate service creation
+        run: |
+          echo "Creating service: ${{ inputs.service_name }}"
+          echo "Description: ${{ inputs.description }}"
+          # Add your actual scaffolding logic here
+          sleep 5
+          echo "✅ Service scaffolding completed!"
 
       - name: Log completion to Port
         if: ${{ inputs.port_run_id != '' }}
