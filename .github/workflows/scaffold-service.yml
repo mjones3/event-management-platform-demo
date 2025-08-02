@@ -1,0 +1,68 @@
+# Save this as: .github/workflows/scaffold-service.yml
+
+name: Scaffold a new service
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        required: true
+        description: 'The name of the new service'
+        type: string
+      description:
+        required: false
+        description: 'Description of the service'
+        type: string
+        default: 'A new microservice'
+      port_context:
+        required: true
+        description: 'Port context (includes run ID)'
+        type: string
+
+env:
+  ORG_NAME: your-org-name  # Replace with your actual GitHub org/username
+
+jobs:
+  scaffold-service:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Display inputs (for debugging)
+        run: |
+          echo "Service Name: ${{ inputs.service_name }}"
+          echo "Description: ${{ inputs.description }}"
+          echo "Port Context: ${{ inputs.port_context }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Repository: ${{ github.repository }}"
+
+      - name: Log start to Port
+        if: ${{ inputs.port_context != '' }}
+        uses: port-labs/port-github-action@v1
+        with:
+          clientId: ${{ secrets.PORT_CLIENT_ID }}
+          clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
+          baseUrl: https://api.getport.io
+          operation: PATCH_RUN
+          runId: ${{ fromJson(inputs.port_context).runId }}
+          logMessage: "🚀 Starting scaffolding of service: ${{ inputs.service_name }}"
+
+      - name: Simulate service creation
+        run: |
+          echo "Creating service: ${{ inputs.service_name }}"
+          echo "Description: ${{ inputs.description }}"
+          # Add your actual scaffolding logic here
+          sleep 5
+          echo "✅ Service scaffolding completed!"
+
+      - name: Log completion to Port
+        if: ${{ inputs.port_context != '' }}
+        uses: port-labs/port-github-action@v1
+        with:
+          clientId: ${{ secrets.PORT_CLIENT_ID }}
+          clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
+          baseUrl: https://api.getport.io
+          operation: PATCH_RUN
+          runId: ${{ fromJson(inputs.port_context).runId }}
+          logMessage: "✅ Successfully scaffolded service: ${{ inputs.service_name }}"
