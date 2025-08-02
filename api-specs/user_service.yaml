@@ -1,0 +1,1729 @@
+openapi: 3.0.3
+info:
+  title: User Management Service API
+  description: |
+    Comprehensive user management service for the Event Management Platform.
+    Handles user registration, authentication, profiles, roles, and permissions.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@eventplatform.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.eventplatform.com/users/v1
+    description: Production server
+  - url: https://staging-api.eventplatform.com/users/v1
+    description: Staging server
+  - url: http://localhost:8081/api/v1
+    description: Development server
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /users:
+    get:
+      summary: List users with filtering and pagination
+      description: Retrieve a paginated list of users with optional filtering
+      tags:
+        - Users
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: status
+          in: query
+          description: Filter by user status
+          schema:
+            $ref: '#/components/schemas/UserStatus'
+        - name: role
+          in: query
+          description: Filter by role name
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: Search in username, email, firstName, lastName
+          schema:
+            type: string
+            minLength: 2
+        - name: createdAfter
+          in: query
+          description: Filter users created after this date
+          schema:
+            type: string
+            format: date-time
+        - name: lastLoginBefore
+          in: query
+          description: Filter users who last logged in before this date
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Successfully retrieved users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Create a new user
+      description: Register a new user in the system
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: User already exists (email or username conflict)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{userId}:
+    get:
+      summary: Get user by ID
+      description: Retrieve detailed information about a specific user
+      tags:
+        - Users
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: includeRoles
+          in: query
+          description: Include role details in response
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      summary: Update user
+      description: Update user information (full update)
+      tags:
+        - Users
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conflict (email or username already exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Partially update user
+      description: Update specific user fields
+      tags:
+        - Users
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete user
+      description: Soft delete a user (sets status to DELETED)
+      tags:
+        - Users
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: hardDelete
+          in: query
+          description: Permanently delete user data (admin only)
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '204':
+          description: User deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{userId}/profile:
+    get:
+      summary: Get user profile
+      description: Retrieve detailed profile information
+      tags:
+        - User Profile
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: Update user profile
+      description: Update user profile information
+      tags:
+        - User Profile
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserProfileRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}/profile/avatar:
+    post:
+      summary: Upload profile avatar
+      description: Upload a profile picture for the user
+      tags:
+        - User Profile
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG, WebP, max 5MB)
+              required:
+                - avatar
+      responses:
+        '200':
+          description: Avatar uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profileImageUrl:
+                    type: string
+                    format: uri
+                    example: "https://cdn.eventplatform.com/avatars/user123.jpg"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{userId}/roles:
+    get:
+      summary: Get user roles
+      description: Retrieve all roles assigned to a user
+      tags:
+        - User Roles
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: includePermissions
+          in: query
+          description: Include permission details
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Roles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+    post:
+      summary: Assign role to user
+      description: Add a role to a user
+      tags:
+        - User Roles
+      security:
+        - BearerAuth: [admin]
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roleId:
+                  type: integer
+                  format: int64
+                  example: 2
+              required:
+                - roleId
+      responses:
+        '200':
+          description: Role assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Role already assigned to user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Remove role from user
+      description: Remove a specific role from a user
+      tags:
+        - User Roles
+      security:
+        - BearerAuth: [admin]
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: roleId
+          in: query
+          required: true
+          description: ID of the role to remove
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Role removed successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}/auth-methods:
+    get:
+      summary: Get user authentication methods
+      description: List all authentication methods for a user
+      tags:
+        - Authentication
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: Authentication methods retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuthMethod'
+    post:
+      summary: Add authentication method
+      description: Add a new authentication method for the user
+      tags:
+        - Authentication
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAuthMethodRequest'
+      responses:
+        '201':
+          description: Authentication method added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMethod'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Authentication method already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{userId}/auth-methods/{authMethodId}:
+    delete:
+      summary: Remove authentication method
+      description: Remove an authentication method from the user
+      tags:
+        - Authentication
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: authMethodId
+          in: path
+          required: true
+          description: ID of the authentication method to remove
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Authentication method removed
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          description: Cannot remove last authentication method
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/me:
+    get:
+      summary: Get current user profile
+      description: Get the profile of the currently authenticated user
+      tags:
+        - Current User
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      summary: Update current user profile
+      description: Update the profile of the currently authenticated user
+      tags:
+        - Current User
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserProfileRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /users/me/preferences:
+    get:
+      summary: Get user preferences
+      description: Retrieve current user's preferences
+      tags:
+        - Current User
+      responses:
+        '200':
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                example:
+                  theme: "dark"
+                  language: "en"
+                  notifications:
+                    email: true
+                    push: false
+                  timezone: "America/New_York"
+    put:
+      summary: Update user preferences
+      description: Update current user's preferences
+      tags:
+        - Current User
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              example:
+                theme: "light"
+                language: "es"
+                notifications:
+                  email: false
+                  push: true
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /roles:
+    get:
+      summary: List all roles
+      description: Retrieve all available roles in the system
+      tags:
+        - Roles
+      security:
+        - BearerAuth: [admin, role_manager]
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: includePermissions
+          in: query
+          description: Include permission details
+          schema:
+            type: boolean
+            default: false
+        - name: systemOnly
+          in: query
+          description: Filter to show only system roles
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Roles retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedRoleResponse'
+    post:
+      summary: Create a new role
+      description: Create a new role with permissions
+      tags:
+        - Roles
+      security:
+        - BearerAuth: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Role created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Role name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /roles/{roleId}:
+    get:
+      summary: Get role by ID
+      description: Retrieve detailed information about a role
+      tags:
+        - Roles
+      parameters:
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Role found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: Update role
+      description: Update role information and permissions
+      tags:
+        - Roles
+      security:
+        - BearerAuth: [admin]
+      parameters:
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: Role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete role
+      description: Delete a role (cannot delete if assigned to users)
+      tags:
+        - Roles
+      security:
+        - BearerAuth: [admin]
+      parameters:
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Role deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Role is assigned to users and cannot be deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      summary: User login
+      description: Authenticate user and return access token
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '423':
+          description: Account locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/register:
+    post:
+      summary: User registration
+      description: Register a new user account
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Get a new access token using refresh token
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              required:
+                - refreshToken
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      summary: User logout
+      description: Invalidate current session and tokens
+      tags:
+        - Authentication
+      responses:
+        '204':
+          description: Logout successful
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  parameters:
+    UserIdParam:
+      name: userId
+      in: path
+      required: true
+      description: User UUID
+      schema:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+    PageParam:
+      name: page
+      in: query
+      description: Page number (0-based)
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    SizeParam:
+      name: size
+      in: query
+      description: Page size
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    SortParam:
+      name: sort
+      in: query
+      description: Sort criteria (field,direction)
+      schema:
+        type: array
+        items:
+          type: string
+          pattern: '^[a-zA-Z][a-zA-Z0-9]*,(asc|desc)$'
+        example: ["username,asc", "createdAt,desc"]
+
+  schemas:
+    # User Schemas
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        email:
+          type: string
+          format: email
+          example: "john.doe@example.com"
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_-]+$'
+          example: "johndoe"
+        profile:
+          $ref: '#/components/schemas/UserProfile'
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+        preferences:
+          type: object
+          additionalProperties: true
+          example:
+            theme: "dark"
+            language: "en"
+            notifications:
+              email: true
+              push: false
+        authMethods:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthMethod'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2024-01-20T14:22:00Z"
+      required:
+        - id
+        - email
+        - username
+        - profile
+        - roles
+        - preferences
+        - authMethods
+        - status
+        - createdAt
+
+    CreateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: "jane.smith@example.com"
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_-]+$'
+          example: "janesmith"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]'
+          example: "SecurePass123!"
+          description: "Must contain at least one uppercase letter, one lowercase letter, one number, and one special character"
+        profile:
+          $ref: '#/components/schemas/CreateUserProfileRequest'
+        preferences:
+          type: object
+          additionalProperties: true
+        roleIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          example: [2, 3]
+          description: "Optional role IDs to assign to the user"
+      required:
+        - email
+        - username
+        - password
+        - profile
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_-]+$'
+        profile:
+          $ref: '#/components/schemas/UpdateUserProfileRequest'
+        preferences:
+          type: object
+          additionalProperties: true
+        status:
+          $ref: '#/components/schemas/UserStatus'
+
+    PatchUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_-]+$'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        preferences:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+
+    UserProfile:
+      type: object
+      properties:
+        firstName:
+          type: string
+          maxLength: 100
+          example: "John"
+        lastName:
+          type: string
+          maxLength: 100
+          example: "Doe"
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+          example: "1990-05-15"
+        address:
+          $ref: '#/components/schemas/Address'
+        phoneNumber:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+          nullable: true
+          example: "+1234567890"
+        socialLinks:
+          type: object
+          additionalProperties:
+            type: string
+            format: uri
+          example:
+            linkedin: "https://linkedin.com/in/johndoe"
+            twitter: "https://twitter.com/johndoe"
+            github: "https://github.com/johndoe"
+        interests:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 20
+          example: ["technology", "music", "travel", "photography"]
+        bio:
+          type: string
+          maxLength: 1000
+          nullable: true
+          example: "Software engineer passionate about creating amazing user experiences."
+        profileImageUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: "https://cdn.eventplatform.com/avatars/johndoe.jpg"
+
+    CreateUserProfileRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+          maxLength: 100
+          example: "Jane"
+        lastName:
+          type: string
+          maxLength: 100
+          example: "Smith"
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+        address:
+          $ref: '#/components/schemas/Address'
+        phoneNumber:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+          nullable: true
+        socialLinks:
+          type: object
+          additionalProperties:
+            type: string
+            format: uri
+        interests:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 20
+        bio:
+          type: string
+          maxLength: 1000
+          nullable: true
+      required:
+        - firstName
+        - lastName
+
+    UpdateUserProfileRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+          maxLength: 100
+        lastName:
+          type: string
+          maxLength: 100
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+        address:
+          $ref: '#/components/schemas/Address'
+        phoneNumber:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+          nullable: true
+        socialLinks:
+          type: object
+          additionalProperties:
+            type: string
+            format: uri
+        interests:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 20
+        bio:
+          type: string
+          maxLength: 1000
+          nullable: true
+
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+          maxLength: 200
+          example: "123 Main Street"
+        city:
+          type: string
+          maxLength: 100
+          example: "New York"
+        state:
+          type: string
+          maxLength: 100
+          example: "NY"
+        postalCode:
+          type: string
+          maxLength: 20
+          example: "10001"
+        country:
+          type: string
+          maxLength: 100
+          example: "United States"
+      required:
+        - street
+        - city
+        - country
+
+    # Role Schemas
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          maxLength: 100
+          example: "ADMIN"
+        description:
+          type: string
+          maxLength: 500
+          example: "Full system administrator with all permissions"
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+        parentRole:
+          $ref: '#/components/schemas/Role'
+          nullable: true
+        isSystem:
+          type: boolean
+          example: true
+          description: "System roles cannot be deleted"
+      required:
+        - id
+        - name
+        - description
+        - permissions
+        - isSystem
+
+    CreateRoleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          pattern: '^[A-Z_]+$'
+          example: "EVENT_MANAGER"
+        description:
+          type: string
+          maxLength: 500
+          example: "Can manage events and registrations"
+        permissionIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          example: [1, 2, 5, 8]
+        parentRoleId:
+          type: integer
+          format: int64
+          nullable: true
+          example: 2
+      required:
+        - name
+        - description
+        - permissionIds
+
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          pattern: '^[A-Z_]+$'
+        description:
+          type: string
+          maxLength: 500
+        permissionIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        parentRoleId:
+          type: integer
+          format: int64
+          nullable: true
+
+    Permission:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "USER_READ"
+        description:
+          type: string
+          example: "Can read user information"
+        resource:
+          type: string
+          example: "USER"
+        action:
+          type: string
+          example: "READ"
+      required:
+        - id
+        - name
+        - description
+        - resource
+        - action
+
+    # Authentication Schemas
+    AuthMethod:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        type:
+          $ref: '#/components/schemas/AuthType'
+        externalId:
+          type: string
+          nullable: true
+          example: "google_1234567890"
+          description: "External provider user ID"
+        metadata:
+          type: object
+          additionalProperties: true
+          example:
+            provider: "google"
+            email: "user@gmail.com"
+            verified: true
+        isVerified:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+      required:
+        - id
+        - type
+        - isVerified
+        - createdAt
+
+    CreateAuthMethodRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/AuthType'
+        externalId:
+          type: string
+          nullable: true
+          description: "Required for OAuth and SAML methods"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: "Required for LOCAL auth type"
+        metadata:
+          type: object
+          additionalProperties: true
+      required:
+        - type
+
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: "Username or email"
+          example: "johndoe"
+        password:
+          type: string
+          example: "SecurePass123!"
+        rememberMe:
+          type: boolean
+          default: false
+        captchaToken:
+          type: string
+          nullable: true
+          description: "Required after failed login attempts"
+      required:
+        - username
+        - password
+
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: "newuser@example.com"
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_-]+
+          example: "newuser123"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]'
+          example: "NewSecurePass123!"
+        confirmPassword:
+          type: string
+          example: "NewSecurePass123!"
+        firstName:
+          type: string
+          maxLength: 100
+          example: "New"
+        lastName:
+          type: string
+          maxLength: 100
+          example: "User"
+        termsAccepted:
+          type: boolean
+          example: true
+        captchaToken:
+          type: string
+          nullable: true
+          description: "Captcha verification token"
+      required:
+        - email
+        - username
+        - password
+        - confirmPassword
+        - firstName
+        - lastName
+        - termsAccepted
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refreshToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        tokenType:
+          type: string
+          example: "Bearer"
+        expiresIn:
+          type: integer
+          format: int64
+          example: 3600
+          description: "Access token expiration time in seconds"
+        user:
+          $ref: '#/components/schemas/UserResponse'
+      required:
+        - accessToken
+        - refreshToken
+        - tokenType
+        - expiresIn
+        - user
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        tokenType:
+          type: string
+          example: "Bearer"
+        expiresIn:
+          type: integer
+          format: int64
+          example: 3600
+      required:
+        - accessToken
+        - tokenType
+        - expiresIn
+
+    # Enum Schemas
+    UserStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - INACTIVE
+        - SUSPENDED
+        - PENDING_VERIFICATION
+        - DELETED
+      example: "ACTIVE"
+
+    AuthType:
+      type: string
+      enum:
+        - LOCAL
+        - OAUTH_GOOGLE
+        - OAUTH_GITHUB
+        - OAUTH_MICROSOFT
+        - OAUTH_FACEBOOK
+        - SAML
+      example: "LOCAL"
+
+    # Pagination Schemas
+    PagedUserResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+        totalElements:
+          type: integer
+          format: int64
+          example: 150
+        totalPages:
+          type: integer
+          example: 8
+        first:
+          type: boolean
+          example: true
+        last:
+          type: boolean
+          example: false
+        numberOfElements:
+          type: integer
+          example: 20
+        empty:
+          type: boolean
+          example: false
+      required:
+        - content
+        - page
+        - totalElements
+        - totalPages
+        - first
+        - last
+        - numberOfElements
+        - empty
+
+    PagedRoleResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+        totalElements:
+          type: integer
+          format: int64
+          example: 25
+        totalPages:
+          type: integer
+          example: 3
+        first:
+          type: boolean
+          example: false
+        last:
+          type: boolean
+          example: true
+        numberOfElements:
+          type: integer
+          example: 5
+        empty:
+          type: boolean
+          example: false
+      required:
+        - content
+        - page
+        - totalElements
+        - totalPages
+        - first
+        - last
+        - numberOfElements
+        - empty
+
+    PageInfo:
+      type: object
+      properties:
+        size:
+          type: integer
+          example: 20
+          description: "Number of elements per page"
+        number:
+          type: integer
+          example: 0
+          description: "Current page number (0-based)"
+        sort:
+          type: object
+          properties:
+            sorted:
+              type: boolean
+              example: true
+            unsorted:
+              type: boolean
+              example: false
+            empty:
+              type: boolean
+              example: false
+      required:
+        - size
+        - number
+        - sort
+
+    # Error Schemas
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-20T15:30:45Z"
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Validation failed for one or more fields"
+        path:
+          type: string
+          example: "/api/v1/users"
+        traceId:
+          type: string
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+      required:
+        - timestamp
+        - status
+        - error
+        - message
+        - path
+
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+          example: "email"
+        message:
+          type: string
+          example: "Email format is invalid"
+        rejectedValue:
+          type: string
+          nullable: true
+          example: "invalid-email"
+        code:
+          type: string
+          example: "INVALID_FORMAT"
+      required:
+        - field
+        - message
+        - code
+
+    # Bulk Operations
+    BulkUserUpdateRequest:
+      type: object
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 100
+          example: ["550e8400-e29b-41d4-a716-446655440000", "660e8400-e29b-41d4-a716-446655440001"]
+        updates:
+          type: object
+          properties:
+            status:
+              $ref: '#/components/schemas/UserStatus'
+            roleIds:
+              type: array
+              items:
+                type: integer
+                format: int64
+            preferences:
+              type: object
+              additionalProperties: true
+      required:
+        - userIds
+        - updates
+
+    BulkOperationResponse:
+      type: object
+      properties:
+        successful:
+          type: integer
+          example: 45
+        failed:
+          type: integer
+          example: 5
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+                format: uuid
+              error:
+                type: string
+              message:
+                type: string
+        processedAt:
+          type: string
+          format: date-time
+          example: "2024-01-20T15:30:45Z"
+      required:
+        - successful
+        - failed
+        - errors
+        - processedAt
+
+  responses:
+    BadRequest:
+      description: Bad request - validation errors or malformed input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation-error:
+              summary: Validation Error
+              value:
+                timestamp: "2024-01-20T15:30:45Z"
+                status: 400
+                error: "Bad Request"
+                message: "Validation failed"
+                path: "/api/v1/users"
+                traceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                details:
+                  - field: "email"
+                    message: "Email format is invalid"
+                    rejectedValue: "invalid-email"
+                    code: "INVALID_FORMAT"
+
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missing-token:
+              summary: Missing Authentication Token
+              value:
+                timestamp: "2024-01-20T15:30:45Z"
+                status: 401
+                error: "Unauthorized"
+                message: "Authentication token is required"
+                path: "/api/v1/users/me"
+                traceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+            invalid-token:
+              summary: Invalid Token
+              value:
+                timestamp: "2024-01-20T15:30:45Z"
+                status: 401
+                error: "Unauthorized"
+                message: "Invalid or expired authentication token"
+                path: "/api/v1/users/me"
+                traceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+    Forbidden:
+      description: Access denied - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            insufficient-permissions:
+              summary: Insufficient Permissions
+              value:
+                timestamp: "2024-01-20T15:30:45Z"
+                status: 403
+                error: "Forbidden"
+                message: "Insufficient permissions to access this resource"
+                path: "/api/v1/users/123/roles"
+                traceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            user-not-found:
+              summary: User Not Found
+              value:
+                timestamp: "2024-01-20T15:30:45Z"
+                status: 404
+                error: "Not Found"
+                message: "User with ID 550e8400-e29b-41d4-a716-446655440000 not found"
+                path: "/api/v1/users/550e8400-e29b-41d4-a716-446655440000"
+                traceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+tags:
+  - name: Users
+    description: User management operations
+  - name: User Profile
+    description: User profile management
+  - name: User Roles
+    description: User role assignment and management
+  - name: Current User
+    description: Operations for the currently authenticated user
+  - name: Roles
+    description: Role and permission management
+  - name: Authentication
+    description: Authentication and authorization operations
+
+externalDocs:
+  description: Find more information about the Event Management Platform API
+  url: https://docs.eventplatform.com/api
