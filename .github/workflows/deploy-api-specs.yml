@@ -1,0 +1,130 @@
+name: Deploy OpenAPI Specs to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['api-specs/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy-specs:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install dependencies
+        run: pip install PyYAML
+      
+      - name: Convert YAML specs to JSON with CORS
+        run: |
+          mkdir -p docs/api-specs
+          
+          # Create index.html with CORS headers
+          cat > docs/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>API Specifications</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 40px; }
+                  .spec-list { list-style: none; padding: 0; }
+                  .spec-item { 
+                      background: #f5f5f5; 
+                      margin: 10px 0; 
+                      padding: 15px; 
+                      border-radius: 5px;
+                  }
+                  .spec-item a { text-decoration: none; color: #0066cc; }
+                  .spec-item a:hover { text-decoration: underline; }
+                  .cors-note {
+                      background: #e8f5e8;
+                      padding: 15px;
+                      border-radius: 5px;
+                      margin-bottom: 20px;
+                  }
+              </style>
+          </head>
+          <body>
+              <h1>Event Management Platform - API Specifications</h1>
+              
+              <div class="cors-note">
+                  <strong>🔗 CORS Enabled:</strong> These specs are served with CORS headers allowing access from Port.io and other API tools.
+              </div>
+              
+              <h2>Available API Specifications (JSON)</h2>
+              <ul class="spec-list">
+          EOF
+          
+          # Convert each YAML file to JSON
+          for yaml_file in api-specs/*.yaml; do
+              if [ -f "$yaml_file" ]; then
+                  base_name=$(basename "$yaml_file" .yaml)
+                  json_file="docs/api-specs/${base_name}.json"
+                  
+                  echo "Converting $yaml_file to $json_file"
+                  python3 -c "
+          import yaml, json, sys
+          with open('$yaml_file', 'r') as f:
+              data = yaml.safe_load(f)
+          with open('$json_file', 'w') as f:
+              json.dump(data, f, indent=2)
+          "
+                  
+                  # Add to index
+                  echo "                  <li class=\"spec-item\">" >> docs/index.html
+                  echo "                      <strong>${base_name}</strong><br>" >> docs/index.html
+                  echo "                      <a href=\"./api-specs/${base_name}.json\">${base_name}.json</a>" >> docs/index.html
+                  echo "                      <br><small>Last updated: $(date)</small>" >> docs/index.html
+                  echo "                  </li>" >> docs/index.html
+              fi
+          done
+          
+          # Close index.html
+          cat >> docs/index.html << 'EOF'
+              </ul>
+              
+              <h2>Usage</h2>
+              <p>Point your API tools to:</p>
+              <code>https://mjones3.github.io/event-management-platform-demo/api-specs/{service-name}.json</code>
+              
+              <h3>Port.io Integration</h3>
+              <p>Use these URLs in your Port.io service entity's <code>myOpenApi</code> property.</p>
+          </body>
+          </html>
+          EOF
+          
+          # Create _headers file for Netlify-style CORS (GitHub Pages alternative)
+          cat > docs/_headers << 'EOF'
+          /api-specs/*
+            Access-Control-Allow-Origin: *
+            Access-Control-Allow-Methods: GET, OPTIONS
+            Access-Control-Allow-Headers: *
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+        
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: './docs'
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
