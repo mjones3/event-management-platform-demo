@@ -588,7 +588,7 @@ jobs:
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
-
+          
           # Check if we have a pom.xml and enhance it
           if [[ -f "pom.xml" ]]; then
             echo "📦 Enhancing pom.xml with additional dependencies..."
@@ -596,44 +596,114 @@ jobs:
             # Create a backup
             cp pom.xml pom.xml.backup
             
-            # Insert additional dependencies before </dependencies>
-            sed -i '/<\/dependencies>/i\
-          		<!-- Additional Spring Boot Dependencies -->\
-          		<dependency>\
-          			<groupId>org.springframework.boot</groupId>\
-          			<artifactId>spring-boot-starter-data-jpa</artifactId>\
-          		</dependency>\
-          		<dependency>\
-          			<groupId>org.springframework.boot</groupId>\
-          			<artifactId>spring-boot-starter-actuator</artifactId>\
-          		</dependency>\
-          		<dependency>\
-          			<groupId>org.springframework.boot</groupId>\
-          			<artifactId>spring-boot-starter-validation</artifactId>\
-          		</dependency>\
-          		<dependency>\
-          			<groupId>org.postgresql</groupId>\
-          			<artifactId>postgresql</artifactId>\
-          			<scope>runtime</scope>\
-          		</dependency>\
-          		<dependency>\
-          			<groupId>io.micrometer</groupId>\
-          			<artifactId>micrometer-registry-prometheus</artifactId>\
-          		</dependency>\
-          		<dependency>\
-          			<groupId>org.springframework.boot</groupId>\
-          			<artifactId>spring-boot-starter-test</artifactId>\
-          			<scope>test</scope>\
-          		</dependency>\
-          		<dependency>\
-          			<groupId>org.flywaydb</groupId>\
-          			<artifactId>flyway-core</artifactId>\
-          		</dependency>\
-          		<dependency>\
-          			<groupId>org.flywaydb</groupId>\
-          			<artifactId>flyway-database-postgresql</artifactId>\
-          		</dependency>' pom.xml
-
+            # Function to check if dependency exists
+            check_dependency() {
+              local groupId=$1
+              local artifactId=$2
+              grep -q "<groupId>$groupId</groupId>" pom.xml && \
+              grep -A1 "<groupId>$groupId</groupId>" pom.xml | grep -q "<artifactId>$artifactId</artifactId>"
+            }
+            
+            # Build list of dependencies to add (only if they don't exist)
+            DEPS_TO_ADD=""
+            
+            if ! check_dependency "org.springframework.boot" "spring-boot-starter-data-jpa"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.springframework.boot</groupId>
+          			<artifactId>spring-boot-starter-data-jpa</artifactId>
+          		</dependency>"
+            else
+              echo "spring-boot-starter-data-jpa already exists"
+            fi
+            
+            if ! check_dependency "org.springframework.boot" "spring-boot-starter-actuator"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.springframework.boot</groupId>
+          			<artifactId>spring-boot-starter-actuator</artifactId>
+          		</dependency>"
+            else
+              echo "spring-boot-starter-actuator already exists"
+            fi
+            
+            if ! check_dependency "org.springframework.boot" "spring-boot-starter-validation"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.springframework.boot</groupId>
+          			<artifactId>spring-boot-starter-validation</artifactId>
+          		</dependency>"
+            else
+              echo "spring-boot-starter-validation already exists"
+            fi
+            
+            if ! check_dependency "org.postgresql" "postgresql"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.postgresql</groupId>
+          			<artifactId>postgresql</artifactId>
+          			<scope>runtime</scope>
+          		</dependency>"
+            else
+              echo "postgresql already exists"
+            fi
+            
+            if ! check_dependency "io.micrometer" "micrometer-registry-prometheus"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>io.micrometer</groupId>
+          			<artifactId>micrometer-registry-prometheus</artifactId>
+          		</dependency>"
+            else
+              echo "micrometer-registry-prometheus already exists"
+            fi
+            
+            if ! check_dependency "org.springframework.boot" "spring-boot-starter-test"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.springframework.boot</groupId>
+          			<artifactId>spring-boot-starter-test</artifactId>
+          			<scope>test</scope>
+          		</dependency>"
+            else
+              echo "spring-boot-starter-test already exists"
+            fi
+            
+            if ! check_dependency "org.flywaydb" "flyway-core"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.flywaydb</groupId>
+          			<artifactId>flyway-core</artifactId>
+          		</dependency>"
+            else
+              echo "flyway-core already exists"
+            fi
+            
+            if ! check_dependency "org.flywaydb" "flyway-database-postgresql"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.flywaydb</groupId>
+          			<artifactId>flyway-database-postgresql</artifactId>
+          		</dependency>"
+            else
+              echo "flyway-database-postgresql already exists"
+            fi
+            
+            # Add dependencies if any were collected
+            if [[ -n "$DEPS_TO_ADD" ]]; then
+              echo "Adding new dependencies..."
+              # Create temp file with additional dependencies
+              cat > additional_deps.txt << EOF
+          		<!-- Additional Spring Boot Dependencies -->$DEPS_TO_ADD
+          EOF
+              
+              # Insert before </dependencies>
+              sed -i '/<\/dependencies>/e cat additional_deps.txt' pom.xml
+              rm additional_deps.txt
+            else
+              echo "All required dependencies already exist"
+            fi
+            
             # Check if Spring Boot Maven plugin already exists, if not add it
             if ! grep -q "spring-boot-maven-plugin" pom.xml; then
               echo "Adding Spring Boot Maven plugin..."
@@ -696,8 +766,13 @@ jobs:
             fi
             
             echo "✅ Enhanced pom.xml successfully"
-            echo "📄 Updated pom.xml structure:"
-            grep -E "(groupId|artifactId)" pom.xml | head -20
+            echo "📄 Final pom.xml validation:"
+            if mvn help:effective-pom -q > /dev/null 2>&1; then
+              echo "✅ pom.xml is valid"
+            else
+              echo "❌ pom.xml has issues, showing structure:"
+              grep -n "groupId\|artifactId\|version" pom.xml | head -30
+            fi
           else
             echo "❌ No pom.xml found to enhance"
           fi
@@ -706,32 +781,32 @@ jobs:
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
-
+          
           # Find the main application class and ensure it exists and is correct
           PACKAGE_DIR="src/main/java/com/eventplatform/$(echo $SERVICE_NAME | tr '-' '/')"
           MAIN_CLASS_NAME="$(echo $SERVICE_NAME | sed 's/-//g' | sed 's/\b\w/\U&/g')Application"
-
+          
           echo "📝 Creating/updating main application class: $MAIN_CLASS_NAME"
-
+          
           # Create the main application class
           mkdir -p "$PACKAGE_DIR"
           cat > "$PACKAGE_DIR/${MAIN_CLASS_NAME}.java" << EOF
           package com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.');
-
+          
           import org.springframework.boot.SpringApplication;
           import org.springframework.boot.autoconfigure.SpringBootApplication;
           import org.springframework.web.bind.annotation.GetMapping;
           import org.springframework.web.bind.annotation.RestController;
           import java.util.Map;
           import java.util.HashMap;
-
+          
           @SpringBootApplication
           public class ${MAIN_CLASS_NAME} {
               public static void main(String[] args) {
                   SpringApplication.run(${MAIN_CLASS_NAME}.class, args);
               }
           }
-
+          
           @RestController
           class HealthController {
               
@@ -762,13 +837,13 @@ jobs:
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
-
+          
           # Create application.yml with proper configuration
           mkdir -p src/main/resources
           cat > src/main/resources/application.yml << 'EOF'
           server:
             port: ${PORT:8080}
-
+          
           spring:
             application:
               name: SERVICE_NAME_PLACEHOLDER
@@ -797,13 +872,13 @@ jobs:
               export:
                 prometheus:
                   enabled: true
-
+          
           logging:
             level:
               com.eventplatform: ${LOG_LEVEL:INFO}
               org.springframework.web: ${WEB_LOG_LEVEL:WARN}
               org.hibernate.SQL: ${SQL_LOG_LEVEL:WARN}
-
+          
           springdoc:
             api-docs:
               path: /api-docs
@@ -811,28 +886,28 @@ jobs:
               path: /swagger-ui.html
               operations-sorter: method
           EOF
-
+          
           # Replace placeholders in application.yml
           sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" src/main/resources/application.yml
           sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" src/main/resources/application.yml
-
+          
           # Create application.properties as fallback
           cat > src/main/resources/application.properties << EOF
           # Application Configuration
           spring.application.name=$SERVICE_NAME
           server.port=8080
-
+          
           # Database Configuration
           spring.datasource.url=jdbc:postgresql://localhost:5432/${SERVICE_NAME//-/_}_db
           spring.datasource.username=postgres
           spring.datasource.password=password
           spring.jpa.hibernate.ddl-auto=create-drop
           spring.jpa.show-sql=false
-
+          
           # Actuator Configuration
           management.endpoints.web.exposure.include=health,info,metrics
           management.endpoint.health.show-details=always
-
+          
           # Logging Configuration
           logging.level.com.eventplatform=INFO
           EOF
@@ -841,9 +916,9 @@ jobs:
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
-
+          
           echo "🔧 Building the Spring Boot application..."
-
+          
           # Build the application
           if command -v mvn &> /dev/null; then
             echo "📦 Building with Maven..."
@@ -866,45 +941,45 @@ jobs:
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
-
+          
           # Create an enhanced Dockerfile with multi-stage build
           cat > Dockerfile << 'EOF'
           # Multi-stage build for Spring Boot application
           FROM maven:3.9-openjdk-17-slim AS builder
-
+          
           WORKDIR /app
-
+          
           # Copy pom.xml first for better caching
           COPY pom.xml .
-
+          
           # Download dependencies
           RUN mvn dependency:go-offline -B
-
+          
           # Copy source code
           COPY src ./src
-
+          
           # Build the application
           RUN mvn clean package -DskipTests -B
-
+          
           # Runtime stage
           FROM openjdk:17-jdk-slim
-
+          
           WORKDIR /app
-
+          
           # Copy the JAR from builder stage
           COPY --from=builder /app/target/*.jar app.jar
-
+          
           # Create non-root user
           RUN addgroup --system spring && adduser --system spring --ingroup spring
           USER spring:spring
-
+          
           # Expose port
           EXPOSE 8080
-
+          
           # Health check
           HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
               CMD curl -f http://localhost:8080/actuator/health || exit 1
-
+          
           # Run the application
           ENTRYPOINT ["java", "-jar", "app.jar"]
           EOF
@@ -913,7 +988,7 @@ jobs:
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
-
+          
           # Create docker-compose.yml with working setup
           cat > docker-compose.yml << 'EOF'
           version: '3.8'
@@ -953,11 +1028,11 @@ jobs:
                 interval: 10s
                 timeout: 5s
                 retries: 5
-
+          
           volumes:
             postgres_data:
           EOF
-
+          
           # Replace placeholders in docker-compose.yml
           sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" docker-compose.yml
           sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" docker-compose.yml
@@ -966,14 +1041,14 @@ jobs:
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
-
+          
           # Create a startup script
           cat > start.sh << 'EOF'
           #!/bin/bash
           set -e
-
+          
           echo "🚀 Starting SERVICE_NAME_PLACEHOLDER..."
-
+          
           # Check if Docker is available
           if command -v docker &> /dev/null; then
               echo "🐳 Starting with Docker Compose..."
@@ -996,35 +1071,35 @@ jobs:
               java -jar target/*.jar
           fi
           EOF
-
+          
           # Replace placeholder in start.sh
           sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" start.sh
           chmod +x start.sh
-
+          
           # Create a test script
           cat > test-service.sh << 'EOF'
           #!/bin/bash
           set -e
-
+          
           SERVICE_URL="http://localhost:8080"
-
+          
           echo "🧪 Testing SERVICE_NAME_PLACEHOLDER..."
-
+          
           # Test root endpoint
           echo "Testing root endpoint..."
           curl -s "$SERVICE_URL/" | jq . || echo "Root endpoint test failed"
-
+          
           # Test health endpoint
           echo "Testing health endpoint..."
           curl -s "$SERVICE_URL/actuator/health" | jq . || echo "Health endpoint test failed"
-
+          
           # Test API health endpoint
           echo "Testing API health endpoint..."
           curl -s "$SERVICE_URL/api/v1/health" | jq . || echo "API health endpoint test failed"
-
+          
           echo "✅ Service tests completed!"
           EOF
-
+          
           # Replace placeholder in test-service.sh
           sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" test-service.sh
           chmod +x test-service.sh
@@ -1036,7 +1111,7 @@ jobs:
             echo "Installing Python3..."
             sudo apt-get update && sudo apt-get install -y python3 python3-pip
           fi
-
+          
           if ! python3 -c "import yaml" 2>/dev/null; then
             echo "Installing PyYAML..."
             pip3 install PyYAML
@@ -1046,11 +1121,11 @@ jobs:
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
-
+          
           # Create database directory
           mkdir -p src/main/resources/db/migration
           mkdir -p database/scripts
-
+          
           # Create the Python script for schema generation
           cat > generate_schema.py << 'EOF'
           import yaml
@@ -1058,7 +1133,7 @@ jobs:
           import re
           import os
           from datetime import datetime
-
+          
           def openapi_type_to_postgres(openapi_type, format_type=None, enum_values=None):
               """Convert OpenAPI types to PostgreSQL types"""
               type_mapping = {
@@ -1098,12 +1173,12 @@ jobs:
                   return f"VARCHAR(50) CHECK (VALUE IN ({', '.join([f\"'{v}'\" for v in enum_values])}))"
               
               return type_mapping.get(openapi_type, {}).get(format_type, type_mapping.get(openapi_type, {}).get(None, 'TEXT'))
-
+          
           def snake_case(name):
               """Convert camelCase or PascalCase to snake_case"""
               s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
               return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
-
+          
           def generate_table_name(schema_name):
               """Generate table name from schema name"""
               table_name = schema_name
@@ -1112,7 +1187,7 @@ jobs:
                       table_name = table_name[:-len(suffix)]
                       break
               return snake_case(table_name) + 's'
-
+          
           try:
               # Load the OpenAPI spec
               with open('api-spec.yaml', 'r') as f:
@@ -1163,7 +1238,7 @@ jobs:
               # Create basic schema as fallback
               basic_schema = f"""-- Basic schema
           CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
+          
           CREATE TABLE IF NOT EXISTS entities (
               id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
               name VARCHAR(255) NOT NULL,
@@ -1187,7 +1262,7 @@ jobs:
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
-
+          
           echo "🗄️  Generating PostgreSQL database schema..."
           python3 generate_schema.py
 
@@ -1195,56 +1270,114 @@ jobs:
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
-
+          
           # Create database initialization script
           cat > database/scripts/init-database.sh << 'EOF'
           #!/bin/bash
           set -e
-
+          
           DB_NAME=${1:-"SERVICE_NAME_DB_PLACEHOLDER"}
           DB_USER=${2:-"postgres"}
           DB_PASSWORD=${3:-"password"}
           DB_HOST=${4:-"localhost"}
           DB_PORT=${5:-"5432"}
-
+          
           echo "🗄️  Initializing database: $DB_NAME"
-
+          
           # Wait for PostgreSQL to be ready
           until PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -c '\q'; do
             echo "⏳ Waiting for PostgreSQL..."
             sleep 2
           done
-
+          
           # Create database if it doesn't exist
           PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1 || \
           PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -c "CREATE DATABASE \"$DB_NAME\""
-
+          
           # Run schema script
           echo "📋 Running schema migrations..."
           PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f 001_initial_schema.sql
-
+          
           echo "✅ Database initialization completed!"
           EOF
-
+          
           # Replace placeholder in init script
           sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" database/scripts/init-database.sh
           chmod +x database/scripts/init-database.sh
-
+          
           # Create sample data script
           cat > database/scripts/002_sample_data.sql << EOF
           -- Sample data for $SERVICE_NAME
           -- Generated on: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
+          
           -- Insert sample data here
           -- Example:
           -- INSERT INTO entities (name, description, status) VALUES 
           --   ('Sample Entity 1', 'This is a sample entity for testing', 'ACTIVE'),
           --   ('Sample Entity 2', 'Another sample entity', 'ACTIVE');
-
+          
           -- You can uncomment and modify the above lines to add sample data
           EOF
 
       - name: Create database documentation
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
+          
+          # Create database documentation
+          cat > database/README.md << EOF
+          # Database Schema for $SERVICE_NAME
+          
+          This directory contains the PostgreSQL database schema and related scripts for the $SERVICE_NAME.
+          
+          ## 📁 Structure
+          
+          - \`scripts/\` - Database scripts and migrations
+            - \`001_initial_schema.sql\` - Initial database schema
+            - \`002_sample_data.sql\` - Sample data for development
+            - \`init-database.sh\` - Database initialization script
+          
+          ## 🚀 Quick Start
+          
+          ### Using Docker Compose (Recommended)
+          The database is automatically set up when you run:
+          \`\`\`bash
+          docker-compose up -d
+          \`\`\`
+          
+          ### Manual Setup
+          1. **Start PostgreSQL:**
+             \`\`\`bash
+             docker run -d --name postgres \\
+               -e POSTGRES_DB=${SERVICE_NAME//-/_}_db \\
+               -e POSTGRES_USER=postgres \\
+               -e POSTGRES_PASSWORD=password \\
+               -p 5432:5432 postgres:15
+             \`\`\`
+          
+          2. **Initialize the database:**
+             \`\`\`bash
+             cd database/scripts
+             ./init-database.sh
+             \`\`\`
+          
+          3. **Connect to the database:**
+             \`\`\`bash
+             psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db
+             \`\`\`
+          
+          ## 📋 Connection Details
+          
+          - **Host:** localhost
+          - **Port:** 5432
+          - **Database:** ${SERVICE_NAME//-/_}_db
+          - **Username:** postgres
+          - **Password:** password
+          EOF
+          
+          echo "✅ Generated complete PostgreSQL database setup!"
+          echo "📁 Database files created:"
+          find database -type f | head -10
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
