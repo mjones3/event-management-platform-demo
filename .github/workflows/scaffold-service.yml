@@ -79,6 +79,13 @@ jobs:
       - name: Enhance generated service with microservice features
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
           cd "$SERVICE_NAME"
 
           # Check if we have a pom.xml and enhance it
@@ -272,6 +279,13 @@ jobs:
       - name: Create main application class
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
           cd "$SERVICE_NAME"
 
           # Find the main application class and ensure it exists and is correct
@@ -328,6 +342,13 @@ jobs:
       - name: Create application configuration files
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
           cd "$SERVICE_NAME"
 
           # Create application.yml with proper configuration
@@ -407,6 +428,13 @@ jobs:
       - name: Build Spring Boot application
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
           cd "$SERVICE_NAME"
 
           echo "🔧 Building the Spring Boot application..."
@@ -432,6 +460,13 @@ jobs:
       - name: Create Docker configuration
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
           cd "$SERVICE_NAME"
 
           # Create an enhanced Dockerfile with multi-stage build
@@ -479,6 +514,13 @@ jobs:
       - name: Create Docker Compose configuration
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
           cd "$SERVICE_NAME"
 
           # Create docker-compose.yml with working setup
@@ -532,6 +574,13 @@ jobs:
       - name: Create utility scripts
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
           cd "$SERVICE_NAME"
 
           # Create a startup script
@@ -612,6 +661,13 @@ jobs:
       - name: Create database schema generation script
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
           cd "$SERVICE_NAME"
 
           # Create database directory
@@ -753,6 +809,13 @@ jobs:
       - name: Generate database schema
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
           cd "$SERVICE_NAME"
 
           echo "🗄️  Generating PostgreSQL database schema..."
@@ -761,6 +824,13 @@ jobs:
       - name: Create database initialization scripts
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
           cd "$SERVICE_NAME"
 
           # Create database initialization script
@@ -813,6 +883,71 @@ jobs:
 
       - name: Create database documentation
         run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Ensure directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            exit 1
+          fi
+
+          cd "$SERVICE_NAME"
+
+          # Create database documentation
+          cat > database/README.md << EOF
+          # Database Schema for $SERVICE_NAME
+
+          This directory contains the PostgreSQL database schema and related scripts for the $SERVICE_NAME.
+
+          ## 📁 Structure
+
+          - \`scripts/\` - Database scripts and migrations
+            - \`001_initial_schema.sql\` - Initial database schema
+            - \`002_sample_data.sql\` - Sample data for development
+            - \`init-database.sh\` - Database initialization script
+
+          ## 🚀 Quick Start
+
+          ### Using Docker Compose (Recommended)
+          The database is automatically set up when you run:
+          \`\`\`bash
+          docker-compose up -d
+          \`\`\`
+
+          ### Manual Setup
+          1. **Start PostgreSQL:**
+             \`\`\`bash
+             docker run -d --name postgres \\
+               -e POSTGRES_DB=${SERVICE_NAME//-/_}_db \\
+               -e POSTGRES_USER=postgres \\
+               -e POSTGRES_PASSWORD=password \\
+               -p 5432:5432 postgres:15
+             \`\`\`
+
+          2. **Initialize the database:**
+             \`\`\`bash
+             cd database/scripts
+             ./init-database.sh
+             \`\`\`
+
+          3. **Connect to the database:**
+             \`\`\`bash
+             psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db
+             \`\`\`
+
+          ## 📋 Connection Details
+
+          - **Host:** localhost
+          - **Port:** 5432
+          - **Database:** ${SERVICE_NAME//-/_}_db
+          - **Username:** postgres
+          - **Password:** password
+          EOF
+
+          echo "✅ Generated complete PostgreSQL database setup!"
+          echo "📁 Database files created:"
+          find database -type f | head -10
+          run: |
           SERVICE_NAME="${{ inputs.service_name }}"
           cd "$SERVICE_NAME"
 
