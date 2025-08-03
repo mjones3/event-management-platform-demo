@@ -1998,6 +1998,7 @@ tags:
   - name: Analytics
     description: Event analytics and reporting
 
+
 externalDocs:
   description: Find more information about the Event Management Platform API
   url: https://docs.eventplatform.com/api/events object
