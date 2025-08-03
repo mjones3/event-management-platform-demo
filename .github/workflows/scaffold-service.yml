@@ -263,6 +263,189 @@ jobs:
             else
               echo "Spring Boot Maven plugin already exists, skipping..."
             fi
+
+      - name: Enhance generated service with microservice features
+        working-directory: ${{ inputs.service_name }}
+        run: |
+          echo "📍 Working in directory: $(pwd)"
+          echo "📁 Current directory contents:"
+          ls -la
+
+          # Check if we have a pom.xml and enhance it
+          if [[ -f "pom.xml" ]]; then
+            echo "📦 Enhancing pom.xml with additional dependencies..."
+            
+            # Create a backup
+            cp pom.xml pom.xml.backup
+            
+            # Function to check if dependency exists
+            check_dependency() {
+              local groupId=$1
+              local artifactId=$2
+              grep -q "<groupId>$groupId</groupId>" pom.xml && \
+              grep -A1 "<groupId>$groupId</groupId>" pom.xml | grep -q "<artifactId>$artifactId</artifactId>"
+            }
+            
+            # Build list of dependencies to add (only if they don't exist)
+            DEPS_TO_ADD=""
+            
+            if ! check_dependency "org.springframework.boot" "spring-boot-starter-data-jpa"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.springframework.boot</groupId>
+          			<artifactId>spring-boot-starter-data-jpa</artifactId>
+          		</dependency>"
+            else
+              echo "spring-boot-starter-data-jpa already exists"
+            fi
+            
+            if ! check_dependency "org.springframework.boot" "spring-boot-starter-actuator"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.springframework.boot</groupId>
+          			<artifactId>spring-boot-starter-actuator</artifactId>
+          		</dependency>"
+            else
+              echo "spring-boot-starter-actuator already exists"
+            fi
+            
+            if ! check_dependency "org.springframework.boot" "spring-boot-starter-validation"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.springframework.boot</groupId>
+          			<artifactId>spring-boot-starter-validation</artifactId>
+          		</dependency>"
+            else
+              echo "spring-boot-starter-validation already exists"
+            fi
+            
+            if ! check_dependency "org.postgresql" "postgresql"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.postgresql</groupId>
+          			<artifactId>postgresql</artifactId>
+          			<scope>runtime</scope>
+          		</dependency>"
+            else
+              echo "postgresql already exists"
+            fi
+            
+            if ! check_dependency "io.micrometer" "micrometer-registry-prometheus"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>io.micrometer</groupId>
+          			<artifactId>micrometer-registry-prometheus</artifactId>
+          		</dependency>"
+            else
+              echo "micrometer-registry-prometheus already exists"
+            fi
+            
+            if ! check_dependency "org.springframework.boot" "spring-boot-starter-test"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.springframework.boot</groupId>
+          			<artifactId>spring-boot-starter-test</artifactId>
+          			<scope>test</scope>
+          		</dependency>"
+            else
+              echo "spring-boot-starter-test already exists"
+            fi
+            
+            if ! check_dependency "org.flywaydb" "flyway-core"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.flywaydb</groupId>
+          			<artifactId>flyway-core</artifactId>
+          		</dependency>"
+            else
+              echo "flyway-core already exists"
+            fi
+            
+            if ! check_dependency "org.flywaydb" "flyway-database-postgresql"; then
+              DEPS_TO_ADD="$DEPS_TO_ADD
+          		<dependency>
+          			<groupId>org.flywaydb</groupId>
+          			<artifactId>flyway-database-postgresql</artifactId>
+          		</dependency>"
+            else
+              echo "flyway-database-postgresql already exists"
+            fi
+            
+            # Add dependencies if any were collected
+            if [[ -n "$DEPS_TO_ADD" ]]; then
+              echo "Adding new dependencies..."
+              # Create temp file with additional dependencies
+              cat > additional_deps.txt << EOF
+          		<!-- Additional Spring Boot Dependencies -->$DEPS_TO_ADD
+          EOF
+              
+              # Insert before </dependencies>
+              sed -i '/<\/dependencies>/e cat additional_deps.txt' pom.xml
+              rm additional_deps.txt
+            else
+              echo "All required dependencies already exist"
+            fi
+            
+            # Check if Spring Boot Maven plugin already exists, if not add it
+            if ! grep -q "spring-boot-maven-plugin" pom.xml; then
+              echo "Adding Spring Boot Maven plugin..."
+              # Only add build section if it doesn't exist
+              if ! grep -q "<build>" pom.xml; then
+                sed -i '/<\/project>/i\
+          	<build>\
+          		<plugins>\
+          			<plugin>\
+          				<groupId>org.springframework.boot</groupId>\
+          				<artifactId>spring-boot-maven-plugin</artifactId>\
+          				<configuration>\
+          					<excludes>\
+          						<exclude>\
+          							<groupId>org.projectlombok</groupId>\
+          							<artifactId>lombok</artifactId>\
+          						</exclude>\
+          					</excludes>\
+          				</configuration>\
+          			</plugin>\
+          		</plugins>\
+          	</build>' pom.xml
+              else
+                # Build section exists, just add the plugin to existing plugins section
+                if grep -q "<plugins>" pom.xml; then
+                  sed -i '/<\/plugins>/i\
+          			<plugin>\
+          				<groupId>org.springframework.boot</groupId>\
+          				<artifactId>spring-boot-maven-plugin</artifactId>\
+          				<configuration>\
+          					<excludes>\
+          						<exclude>\
+          							<groupId>org.projectlombok</groupId>\
+          							<artifactId>lombok</artifactId>\
+          						</exclude>\
+          					</excludes>\
+          				</configuration>\
+          			</plugin>' pom.xml
+                else
+                  # Build exists but no plugins section
+                  sed -i '/<\/build>/i\
+          		<plugins>\
+          			<plugin>\
+          				<groupId>org.springframework.boot</groupId>\
+          				<artifactId>spring-boot-maven-plugin</artifactId>\
+          				<configuration>\
+          					<excludes>\
+          						<exclude>\
+          							<groupId>org.projectlombok</groupId>\
+          							<artifactId>lombok</artifactId>\
+          						</exclude>\
+          					</excludes>\
+          				</configuration>\
+          			</plugin>\
+          		</plugins>' pom.xml
+                fi
+              fi
+            else
+              echo "Spring Boot Maven plugin already exists, skipping..."
+            fi
             
             echo "✅ Enhanced pom.xml successfully"
             echo "📄 Final pom.xml validation:"
@@ -274,6 +457,10 @@ jobs:
             fi
           else
             echo "❌ No pom.xml found to enhance"
+            echo "📁 Current directory contents:"
+            ls -la
+            echo "🔍 Looking for pom.xml in subdirectories:"
+            find . -name "pom.xml" -type f 2>/dev/null || echo "No pom.xml files found"
           fi
 
       - name: Create main application class
