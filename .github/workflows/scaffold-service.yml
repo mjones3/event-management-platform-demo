@@ -1163,13 +1163,13 @@ try:
             # Add update trigger for updated_at
             sql_statements.append(f"-- Update trigger for {table_name}")
             sql_statements.append(f"""CREATE OR REPLACE FUNCTION update_{table_name}_updated_at()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
     NEW.version = OLD.version + 1;
     RETURN NEW;
 END;
-$ language 'plpgsql';""")
+$$ language 'plpgsql';""")
             sql_statements.append("")
             
             sql_statements.append(f"DROP TRIGGER IF EXISTS trigger_update_{table_name}_updated_at ON {table_name};")
@@ -1233,13 +1233,13 @@ CREATE INDEX IF NOT EXISTS idx_entities_created_at ON entities(created_at);
 
 -- Update trigger
 CREATE OR REPLACE FUNCTION update_entities_updated_at()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
     NEW.version = OLD.version + 1;
     RETURN NEW;
 END;
-$ language 'plpgsql';
+$$ language 'plpgsql';
 
 CREATE TRIGGER trigger_update_entities_updated_at
     BEFORE UPDATE ON entities
