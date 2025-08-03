@@ -76,391 +76,591 @@ jobs:
           java-version: "17"
           distribution: "temurin"
 
-      - name: Enhance generated service with microservice features
+      - name: Validate service name and setup directories
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
 
-          # Ensure directory exists
-          if [[ ! -d "$SERVICE_NAME" ]]; then
-            echo "❌ Service directory not found: $SERVICE_NAME"
+          echo "🔧 Starting service generation for: $SERVICE_NAME"
+          echo "📍 Current working directory: $(pwd)"
+          echo "📁 Available files/directories:"
+          ls -la
+
+          # Validate service name
+          if [[ ! "$SERVICE_NAME" =~ ^[a-z][a-z0-9-]*[a-z0-9]$ ]] || [[ ${#SERVICE_NAME} -lt 3 ]] || [[ ${#SERVICE_NAME} -gt 50 ]]; then
+            echo "❌ Invalid service name: $SERVICE_NAME"
+            echo "Service name must be 3-50 characters, lowercase, kebab-case (e.g., my-service)"
             exit 1
           fi
 
-          cd "$SERVICE_NAME"
+          # Create directory for the new service
+          echo "📁 Creating service directory: $SERVICE_NAME"
+          mkdir -p "$SERVICE_NAME"
 
-          # Check if we have a pom.xml and enhance it
-          if [[ -f "pom.xml" ]]; then
-            echo "📦 Enhancing pom.xml with additional dependencies..."
-            
-            # Create a backup
-            cp pom.xml pom.xml.backup
-            
-            # Function to check if dependency exists
-            check_dependency() {
-              local groupId=$1
-              local artifactId=$2
-              grep -q "<groupId>$groupId</groupId>" pom.xml && \
-              grep -A1 "<groupId>$groupId</groupId>" pom.xml | grep -q "<artifactId>$artifactId</artifactId>"
-            }
-            
-            # Build list of dependencies to add (only if they don't exist)
-            DEPS_TO_ADD=""
-            
-            if ! check_dependency "org.springframework.boot" "spring-boot-starter-data-jpa"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.springframework.boot</groupId>
-          			<artifactId>spring-boot-starter-data-jpa</artifactId>
-          		</dependency>"
-            else
-              echo "spring-boot-starter-data-jpa already exists"
-            fi
-            
-            if ! check_dependency "org.springframework.boot" "spring-boot-starter-actuator"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.springframework.boot</groupId>
-          			<artifactId>spring-boot-starter-actuator</artifactId>
-          		</dependency>"
-            else
-              echo "spring-boot-starter-actuator already exists"
-            fi
-            
-            if ! check_dependency "org.springframework.boot" "spring-boot-starter-validation"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.springframework.boot</groupId>
-          			<artifactId>spring-boot-starter-validation</artifactId>
-          		</dependency>"
-            else
-              echo "spring-boot-starter-validation already exists"
-            fi
-            
-            if ! check_dependency "org.postgresql" "postgresql"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.postgresql</groupId>
-          			<artifactId>postgresql</artifactId>
-          			<scope>runtime</scope>
-          		</dependency>"
-            else
-              echo "postgresql already exists"
-            fi
-            
-            if ! check_dependency "io.micrometer" "micrometer-registry-prometheus"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>io.micrometer</groupId>
-          			<artifactId>micrometer-registry-prometheus</artifactId>
-          		</dependency>"
-            else
-              echo "micrometer-registry-prometheus already exists"
-            fi
-            
-            if ! check_dependency "org.springframework.boot" "spring-boot-starter-test"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.springframework.boot</groupId>
-          			<artifactId>spring-boot-starter-test</artifactId>
-          			<scope>test</scope>
-          		</dependency>"
-            else
-              echo "spring-boot-starter-test already exists"
-            fi
-            
-            if ! check_dependency "org.flywaydb" "flyway-core"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.flywaydb</groupId>
-          			<artifactId>flyway-core</artifactId>
-          		</dependency>"
-            else
-              echo "flyway-core already exists"
-            fi
-            
-            if ! check_dependency "org.flywaydb" "flyway-database-postgresql"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.flywaydb</groupId>
-          			<artifactId>flyway-database-postgresql</artifactId>
-          		</dependency>"
-            else
-              echo "flyway-database-postgresql already exists"
-            fi
-            
-            # Add dependencies if any were collected
-            if [[ -n "$DEPS_TO_ADD" ]]; then
-              echo "Adding new dependencies..."
-              # Create temp file with additional dependencies
-              cat > additional_deps.txt << EOF
-          		<!-- Additional Spring Boot Dependencies -->$DEPS_TO_ADD
-          EOF
-              
-              # Insert before </dependencies>
-              sed -i '/<\/dependencies>/e cat additional_deps.txt' pom.xml
-              rm additional_deps.txt
-            else
-              echo "All required dependencies already exist"
-            fi
-            
-            # Check if Spring Boot Maven plugin already exists, if not add it
-            if ! grep -q "spring-boot-maven-plugin" pom.xml; then
-              echo "Adding Spring Boot Maven plugin..."
-              # Only add build section if it doesn't exist
-              if ! grep -q "<build>" pom.xml; then
-                sed -i '/<\/project>/i\
-          	<build>\
-          		<plugins>\
-          			<plugin>\
-          				<groupId>org.springframework.boot</groupId>\
-          				<artifactId>spring-boot-maven-plugin</artifactId>\
-          				<configuration>\
-          					<excludes>\
-          						<exclude>\
-          							<groupId>org.projectlombok</groupId>\
-          							<artifactId>lombok</artifactId>\
-          						</exclude>\
-          					</excludes>\
-          				</configuration>\
-          			</plugin>\
-          		</plugins>\
-          	</build>' pom.xml
-              else
-                # Build section exists, just add the plugin to existing plugins section
-                if grep -q "<plugins>" pom.xml; then
-                  sed -i '/<\/plugins>/i\
-          			<plugin>\
-          				<groupId>org.springframework.boot</groupId>\
-          				<artifactId>spring-boot-maven-plugin</artifactId>\
-          				<configuration>\
-          					<excludes>\
-          						<exclude>\
-          							<groupId>org.projectlombok</groupId>\
-          							<artifactId>lombok</artifactId>\
-          						</exclude>\
-          					</excludes>\
-          				</configuration>\
-          			</plugin>' pom.xml
-                else
-                  # Build exists but no plugins section
-                  sed -i '/<\/build>/i\
-          		<plugins>\
-          			<plugin>\
-          				<groupId>org.springframework.boot</groupId>\
-          				<artifactId>spring-boot-maven-plugin</artifactId>\
-          				<configuration>\
-          					<excludes>\
-          						<exclude>\
-          							<groupId>org.projectlombok</groupId>\
-          							<artifactId>lombok</artifactId>\
-          						</exclude>\
-          					</excludes>\
-          				</configuration>\
-          			</plugin>\
-          		</plugins>' pom.xml
-                fi
-              fi
-            else
-              echo "Spring Boot Maven plugin already exists, skipping..."
-            fi
+          # Verify directory was created
+          if [[ -d "$SERVICE_NAME" ]]; then
+            echo "✅ Service directory created successfully: $SERVICE_NAME"
+            echo "📁 Directory contents:"
+            ls -la "$SERVICE_NAME"
+          else
+            echo "❌ Failed to create service directory: $SERVICE_NAME"
+            exit 1
+          fi
 
-      - name: Enhance generated service with microservice features
+          # Test if we can write to the directory
+          echo "test" > "$SERVICE_NAME/test.txt"
+          if [[ -f "$SERVICE_NAME/test.txt" ]]; then
+            echo "✅ Directory is writable"
+            rm "$SERVICE_NAME/test.txt"
+          else
+            echo "❌ Directory is not writable"
+            exit 1
+          fi
+
+      - name: Download OpenAPI Generator
         working-directory: ${{ inputs.service_name }}
         run: |
           echo "📍 Working in directory: $(pwd)"
           echo "📁 Current directory contents:"
           ls -la
 
-          # Check if we have a pom.xml and enhance it
-          if [[ -f "pom.xml" ]]; then
-            echo "📦 Enhancing pom.xml with additional dependencies..."
-            
-            # Create a backup
-            cp pom.xml pom.xml.backup
-            
-            # Function to check if dependency exists
-            check_dependency() {
-              local groupId=$1
-              local artifactId=$2
-              grep -q "<groupId>$groupId</groupId>" pom.xml && \
-              grep -A1 "<groupId>$groupId</groupId>" pom.xml | grep -q "<artifactId>$artifactId</artifactId>"
-            }
-            
-            # Build list of dependencies to add (only if they don't exist)
-            DEPS_TO_ADD=""
-            
-            if ! check_dependency "org.springframework.boot" "spring-boot-starter-data-jpa"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.springframework.boot</groupId>
-          			<artifactId>spring-boot-starter-data-jpa</artifactId>
-          		</dependency>"
-            else
-              echo "spring-boot-starter-data-jpa already exists"
-            fi
-            
-            if ! check_dependency "org.springframework.boot" "spring-boot-starter-actuator"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.springframework.boot</groupId>
-          			<artifactId>spring-boot-starter-actuator</artifactId>
-          		</dependency>"
-            else
-              echo "spring-boot-starter-actuator already exists"
-            fi
-            
-            if ! check_dependency "org.springframework.boot" "spring-boot-starter-validation"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.springframework.boot</groupId>
-          			<artifactId>spring-boot-starter-validation</artifactId>
-          		</dependency>"
-            else
-              echo "spring-boot-starter-validation already exists"
-            fi
-            
-            if ! check_dependency "org.postgresql" "postgresql"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.postgresql</groupId>
-          			<artifactId>postgresql</artifactId>
-          			<scope>runtime</scope>
-          		</dependency>"
-            else
-              echo "postgresql already exists"
-            fi
-            
-            if ! check_dependency "io.micrometer" "micrometer-registry-prometheus"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>io.micrometer</groupId>
-          			<artifactId>micrometer-registry-prometheus</artifactId>
-          		</dependency>"
-            else
-              echo "micrometer-registry-prometheus already exists"
-            fi
-            
-            if ! check_dependency "org.springframework.boot" "spring-boot-starter-test"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.springframework.boot</groupId>
-          			<artifactId>spring-boot-starter-test</artifactId>
-          			<scope>test</scope>
-          		</dependency>"
-            else
-              echo "spring-boot-starter-test already exists"
-            fi
-            
-            if ! check_dependency "org.flywaydb" "flyway-core"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.flywaydb</groupId>
-          			<artifactId>flyway-core</artifactId>
-          		</dependency>"
-            else
-              echo "flyway-core already exists"
-            fi
-            
-            if ! check_dependency "org.flywaydb" "flyway-database-postgresql"; then
-              DEPS_TO_ADD="$DEPS_TO_ADD
-          		<dependency>
-          			<groupId>org.flywaydb</groupId>
-          			<artifactId>flyway-database-postgresql</artifactId>
-          		</dependency>"
-            else
-              echo "flyway-database-postgresql already exists"
-            fi
-            
-            # Add dependencies if any were collected
-            if [[ -n "$DEPS_TO_ADD" ]]; then
-              echo "Adding new dependencies..."
-              # Create temp file with additional dependencies
-              cat > additional_deps.txt << EOF
-          		<!-- Additional Spring Boot Dependencies -->$DEPS_TO_ADD
-          EOF
+          # Download OpenAPI Generator CLI
+          echo "📥 Downloading OpenAPI Generator..."
+          if ! wget -q https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/7.2.0/openapi-generator-cli-7.2.0.jar -O openapi-generator-cli.jar; then
+            echo "❌ Failed to download OpenAPI Generator"
+            exit 1
+          fi
+
+          # Verify download
+          if [[ ! -f "openapi-generator-cli.jar" ]] || [[ ! -s "openapi-generator-cli.jar" ]]; then
+            echo "❌ OpenAPI Generator download failed or file is empty"
+            exit 1
+          fi
+
+          echo "✅ OpenAPI Generator downloaded successfully ($(ls -lh openapi-generator-cli.jar | awk '{print $5}'))"
+
+      - name: Fetch or generate OpenAPI specification
+        working-directory: ${{ inputs.service_name }}
+        run: |
+          echo "📋 Fetching OpenAPI specification..."
+
+          SPEC_FOUND=false
+
+          # Check if user provided a custom OpenAPI spec URL
+          if [ -n "${{ inputs.openapi_spec_url }}" ]; then
+            echo "🌐 Using provided OpenAPI spec URL: ${{ inputs.openapi_spec_url }}"
+            if wget -q "${{ inputs.openapi_spec_url }}" -O api-spec.yaml && [[ -s api-spec.yaml ]]; then
+              echo "✅ Downloaded OpenAPI spec from provided URL"
+              SPEC_FOUND=true
               
-              # Insert before </dependencies>
-              sed -i '/<\/dependencies>/e cat additional_deps.txt' pom.xml
-              rm additional_deps.txt
-            else
-              echo "All required dependencies already exist"
-            fi
-            
-            # Check if Spring Boot Maven plugin already exists, if not add it
-            if ! grep -q "spring-boot-maven-plugin" pom.xml; then
-              echo "Adding Spring Boot Maven plugin..."
-              # Only add build section if it doesn't exist
-              if ! grep -q "<build>" pom.xml; then
-                sed -i '/<\/project>/i\
-          	<build>\
-          		<plugins>\
-          			<plugin>\
-          				<groupId>org.springframework.boot</groupId>\
-          				<artifactId>spring-boot-maven-plugin</artifactId>\
-          				<configuration>\
-          					<excludes>\
-          						<exclude>\
-          							<groupId>org.projectlombok</groupId>\
-          							<artifactId>lombok</artifactId>\
-          						</exclude>\
-          					</excludes>\
-          				</configuration>\
-          			</plugin>\
-          		</plugins>\
-          	</build>' pom.xml
+              # Validate it's actually an OpenAPI spec
+              if grep -q "openapi\|swagger" api-spec.yaml; then
+                echo "✅ Valid OpenAPI/Swagger specification detected"
               else
-                # Build section exists, just add the plugin to existing plugins section
-                if grep -q "<plugins>" pom.xml; then
-                  sed -i '/<\/plugins>/i\
-          			<plugin>\
-          				<groupId>org.springframework.boot</groupId>\
-          				<artifactId>spring-boot-maven-plugin</artifactId>\
-          				<configuration>\
-          					<excludes>\
-          						<exclude>\
-          							<groupId>org.projectlombok</groupId>\
-          							<artifactId>lombok</artifactId>\
-          						</exclude>\
-          					</excludes>\
-          				</configuration>\
-          			</plugin>' pom.xml
-                else
-                  # Build exists but no plugins section
-                  sed -i '/<\/build>/i\
-          		<plugins>\
-          			<plugin>\
-          				<groupId>org.springframework.boot</groupId>\
-          				<artifactId>spring-boot-maven-plugin</artifactId>\
-          				<configuration>\
-          					<excludes>\
-          						<exclude>\
-          							<groupId>org.projectlombok</groupId>\
-          							<artifactId>lombok</artifactId>\
-          						</exclude>\
-          					</excludes>\
-          				</configuration>\
-          			</plugin>\
-          		</plugins>' pom.xml
-                fi
+                echo "⚠️  File downloaded but doesn't appear to be an OpenAPI spec"
+                echo "First few lines:"
+                head -5 api-spec.yaml
+                echo "Continuing anyway..."
               fi
             else
-              echo "Spring Boot Maven plugin already exists, skipping..."
+              echo "❌ Failed to download from provided URL: ${{ inputs.openapi_spec_url }}"
+              echo "Will fall back to repository search or template generation"
             fi
+          fi
+
+          # Export the result for next step
+          echo "SPEC_FOUND=$SPEC_FOUND" >> $GITHUB_ENV
+
+      - name: Search for existing OpenAPI specs
+        working-directory: ${{ inputs.service_name }}
+        run: |
+          # Only run if spec wasn't found in previous step
+          if [[ "$SPEC_FOUND" == "false" ]]; then
+            echo "🔍 Searching for OpenAPI spec in repository..."
             
-            echo "✅ Enhanced pom.xml successfully"
-            echo "📄 Final pom.xml validation:"
-            if mvn help:effective-pom -q > /dev/null 2>&1; then
-              echo "✅ pom.xml is valid"
+            if wget -q https://raw.githubusercontent.com/mjones3/event-management-platform-demo/main/api-specs/user-service.yaml -O api-spec.yaml 2>/dev/null && [[ -s api-spec.yaml ]]; then
+              echo "✅ Downloaded OpenAPI spec from api-specs directory"
+              echo "SPEC_FOUND=true" >> $GITHUB_ENV
+            elif wget -q https://raw.githubusercontent.com/mjones3/event-management-platform-demo/main/openapi/user-service.yaml -O api-spec.yaml 2>/dev/null && [[ -s api-spec.yaml ]]; then
+              echo "✅ Downloaded OpenAPI spec from openapi directory"
+              echo "SPEC_FOUND=true" >> $GITHUB_ENV
+            elif wget -q https://raw.githubusercontent.com/mjones3/event-management-platform-demo/main/docs/api/user-service.yaml -O api-spec.yaml 2>/dev/null && [[ -s api-spec.yaml ]]; then
+              echo "✅ Downloaded OpenAPI spec from docs directory"
+              echo "SPEC_FOUND=true" >> $GITHUB_ENV
             else
-              echo "❌ pom.xml has issues, showing structure:"
-              grep -n "groupId\|artifactId\|version" pom.xml | head -30
+              echo "SPEC_FOUND=false" >> $GITHUB_ENV
             fi
           else
-            echo "❌ No pom.xml found to enhance"
-            echo "📁 Current directory contents:"
+            echo "✅ OpenAPI spec already found, skipping search"
+          fi
+
+      - name: Generate template OpenAPI spec if needed
+        working-directory: ${{ inputs.service_name }}
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+
+          if [[ "$SPEC_FOUND" == "false" ]]; then
+            echo "⚠️  Could not find existing OpenAPI spec, creating a template based on service name..."
+            
+            # Create a generic microservice spec based on the service name
+            SERVICE_NAME_CAMEL="$(echo ${SERVICE_NAME} | sed 's/-\([a-z]\)/\U\1/g' | sed 's/^\([a-z]\)/\U\1/')"
+            
+            cat > api-spec.yaml << 'TEMPLATE_EOF'
+          openapi: 3.0.3
+          info:
+            title: SERVICE_NAME_CAMEL_PLACEHOLDER Service API
+            description: SERVICE_DESCRIPTION_PLACEHOLDER
+            version: 1.0.0
+            contact:
+              name: API Support
+              email: support@eventplatform.com
+          servers:
+            - url: https://api.eventplatform.com/SERVICE_NAME_PLACEHOLDER/v1
+              description: Production server
+            - url: http://localhost:8080/api/v1
+              description: Development server
+
+          security:
+            - BearerAuth: []
+
+          paths:
+            /health:
+              get:
+                summary: Health check endpoint
+                description: Returns the health status of the service
+                tags:
+                  - Health
+                security: []
+                responses:
+                  '200':
+                    description: Service is healthy
+                    content:
+                      application/json:
+                        schema:
+                          $ref: '#/components/schemas/HealthResponse'
+            
+            /SERVICE_NAME_PLACEHOLDER_PLURAL:
+              get:
+                summary: List SERVICE_NAME_PLACEHOLDER_PLURAL with pagination
+                description: Retrieve a paginated list with optional filtering
+                tags:
+                  - SERVICE_NAME_CAMEL_PLACEHOLDER
+                parameters:
+                  - name: page
+                    in: query
+                    description: Page number (0-based)
+                    schema:
+                      type: integer
+                      minimum: 0
+                      default: 0
+                  - name: size
+                    in: query
+                    description: Page size
+                    schema:
+                      type: integer
+                      minimum: 1
+                      maximum: 100
+                      default: 20
+                  - name: search
+                    in: query
+                    description: Search term
+                    schema:
+                      type: string
+                      minLength: 2
+                responses:
+                  '200':
+                    description: Successfully retrieved items
+                    content:
+                      application/json:
+                        schema:
+                          $ref: '#/components/schemas/PagedSERVICE_NAME_CAMEL_PLACEHOLDERResponse'
+                  '400':
+                    $ref: '#/components/responses/BadRequest'
+                  '401':
+                    $ref: '#/components/responses/Unauthorized'
+              post:
+                summary: Create a new item
+                description: Create a new item in the system
+                tags:
+                  - SERVICE_NAME_CAMEL_PLACEHOLDER
+                requestBody:
+                  required: true
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/CreateSERVICE_NAME_CAMEL_PLACEHOLDERRequest'
+                responses:
+                  '201':
+                    description: Item created successfully
+                    content:
+                      application/json:
+                        schema:
+                          $ref: '#/components/schemas/SERVICE_NAME_CAMEL_PLACEHOLDERResponse'
+                  '400':
+                    $ref: '#/components/responses/BadRequest'
+                  '401':
+                    $ref: '#/components/responses/Unauthorized'
+            
+            /SERVICE_NAME_PLACEHOLDER_PLURAL/{id}:
+              get:
+                summary: Get item by ID
+                description: Retrieve detailed information about a specific item
+                tags:
+                  - SERVICE_NAME_CAMEL_PLACEHOLDER
+                parameters:
+                  - name: id
+                    in: path
+                    required: true
+                    description: Item ID
+                    schema:
+                      type: string
+                      format: uuid
+                responses:
+                  '200':
+                    description: Item found
+                    content:
+                      application/json:
+                        schema:
+                          $ref: '#/components/schemas/SERVICE_NAME_CAMEL_PLACEHOLDERResponse'
+                  '404':
+                    $ref: '#/components/responses/NotFound'
+                  '401':
+                    $ref: '#/components/responses/Unauthorized'
+              put:
+                summary: Update item
+                description: Update item information (full update)
+                tags:
+                  - SERVICE_NAME_CAMEL_PLACEHOLDER
+                parameters:
+                  - name: id
+                    in: path
+                    required: true
+                    schema:
+                      type: string
+                      format: uuid
+                requestBody:
+                  required: true
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/UpdateSERVICE_NAME_CAMEL_PLACEHOLDERRequest'
+                responses:
+                  '200':
+                    description: Item updated successfully
+                    content:
+                      application/json:
+                        schema:
+                          $ref: '#/components/schemas/SERVICE_NAME_CAMEL_PLACEHOLDERResponse'
+                  '400':
+                    $ref: '#/components/responses/BadRequest'
+                  '404':
+                    $ref: '#/components/responses/NotFound'
+              delete:
+                summary: Delete item
+                description: Delete an item
+                tags:
+                  - SERVICE_NAME_CAMEL_PLACEHOLDER
+                parameters:
+                  - name: id
+                    in: path
+                    required: true
+                    schema:
+                      type: string
+                      format: uuid
+                responses:
+                  '204':
+                    description: Item deleted successfully
+                  '404':
+                    $ref: '#/components/responses/NotFound'
+                  '401':
+                    $ref: '#/components/responses/Unauthorized'
+
+          components:
+            securitySchemes:
+              BearerAuth:
+                type: http
+                scheme: bearer
+                bearerFormat: JWT
+            
+            schemas:
+              HealthResponse:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "UP"
+                  service:
+                    type: string
+                    example: "SERVICE_NAME_PLACEHOLDER"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: "1.0.0"
+                required:
+                  - status
+                  - service
+                  - timestamp
+              
+              SERVICE_NAME_CAMEL_PLACEHOLDERResponse:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    example: "550e8400-e29b-41d4-a716-446655440000"
+                  name:
+                    type: string
+                    example: "Sample Item"
+                  description:
+                    type: string
+                    example: "A sample item description"
+                  status:
+                    type: string
+                    enum: [ACTIVE, INACTIVE, PENDING]
+                    example: "ACTIVE"
+                  createdAt:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    example: "2024-01-20T14:22:00Z"
+                required:
+                  - id
+                  - name
+                  - status
+                  - createdAt
+              
+              CreateSERVICE_NAME_CAMEL_PLACEHOLDERRequest:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                    example: "New Item"
+                  description:
+                    type: string
+                    maxLength: 500
+                    example: "Description of the new item"
+                required:
+                  - name
+              
+              UpdateSERVICE_NAME_CAMEL_PLACEHOLDERRequest:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                  description:
+                    type: string
+                    maxLength: 500
+                  status:
+                    type: string
+                    enum: [ACTIVE, INACTIVE, PENDING]
+              
+              PagedSERVICE_NAME_CAMEL_PLACEHOLDERResponse:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SERVICE_NAME_CAMEL_PLACEHOLDERResponse'
+                  totalElements:
+                    type: integer
+                    format: int64
+                    example: 150
+                  totalPages:
+                    type: integer
+                    example: 8
+                  size:
+                    type: integer
+                    example: 20
+                  number:
+                    type: integer
+                    example: 0
+                  first:
+                    type: boolean
+                    example: true
+                  last:
+                    type: boolean
+                    example: false
+                required:
+                  - content
+                  - totalElements
+                  - totalPages
+                  - size
+                  - number
+                  - first
+                  - last
+              
+              ErrorResponse:
+                type: object
+                properties:
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-20T15:30:45Z"
+                  status:
+                    type: integer
+                    example: 400
+                  error:
+                    type: string
+                    example: "Bad Request"
+                  message:
+                    type: string
+                    example: "Validation failed"
+                  path:
+                    type: string
+                    example: "/api/v1/items"
+                required:
+                  - timestamp
+                  - status
+                  - error
+                  - message
+                  - path
+            
+            responses:
+              BadRequest:
+                description: Bad request - validation errors
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/ErrorResponse'
+              
+              Unauthorized:
+                description: Authentication required
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/ErrorResponse'
+              
+              NotFound:
+                description: Resource not found
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/ErrorResponse'
+
+          tags:
+            - name: SERVICE_NAME_CAMEL_PLACEHOLDER
+              description: Item management operations
+            - name: Health
+              description: Service health endpoints
+          TEMPLATE_EOF
+
+            # Replace placeholders in the spec
+            sed -i "s/SERVICE_NAME_PLACEHOLDER/${SERVICE_NAME}/g" api-spec.yaml
+            sed -i "s/SERVICE_NAME_CAMEL_PLACEHOLDER/${SERVICE_NAME_CAMEL}/g" api-spec.yaml
+            sed -i "s/SERVICE_DESCRIPTION_PLACEHOLDER/${{ inputs.description }}/g" api-spec.yaml
+            sed -i "s/SERVICE_NAME_PLACEHOLDER_PLURAL/${SERVICE_NAME}s/g" api-spec.yaml
+            
+            echo "✅ Generated template OpenAPI spec"
+          else
+            echo "✅ Using existing OpenAPI spec"
+          fi
+
+      - name: Validate and preview OpenAPI specification
+        working-directory: ${{ inputs.service_name }}
+        run: |
+          # Validate the OpenAPI spec
+          echo "📄 Validating OpenAPI specification..."
+          if [[ ! -s api-spec.yaml ]]; then
+            echo "❌ OpenAPI spec file is empty"
+            exit 1
+          fi
+
+          # Show first few lines of the spec
+          echo "📄 OpenAPI specification preview:"
+          head -15 api-spec.yaml
+          echo "..."
+
+          # Test if Java is available and working
+          echo "☕ Testing Java installation..."
+          if ! java -version; then
+            echo "❌ Java is not available or not working"
+            exit 1
+          fi
+
+          # Test if the JAR file is executable
+          echo "🧪 Testing OpenAPI Generator..."
+          if ! java -jar openapi-generator-cli.jar version; then
+            echo "❌ OpenAPI Generator is not working"
+            exit 1
+          fi
+
+          echo "✅ Everything ready for code generation"
+
+      - name: Generate Spring Boot application
+        working-directory: ${{ inputs.service_name }}
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+
+          # Generate Spring Boot application
+          echo "🔧 Generating Spring Boot service..."
+
+          PACKAGE_NAME="com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.')"
+
+          java -jar openapi-generator-cli.jar generate \
+            -i api-spec.yaml \
+            -g spring \
+            -o . \
+            --additional-properties=\
+          packageName=${PACKAGE_NAME},\
+          apiPackage=${PACKAGE_NAME}.controller,\
+          modelPackage=${PACKAGE_NAME}.model,\
+          configPackage=${PACKAGE_NAME}.config,\
+          basePackage=${PACKAGE_NAME},\
+          groupId=com.eventplatform,\
+          artifactId=$SERVICE_NAME,\
+          artifactVersion=1.0.0,\
+          java8=false,\
+          dateLibrary=java8,\
+          interfaceOnly=false,\
+          skipDefaultInterface=false,\
+          useTags=true,\
+          singleContentTypes=true,\
+          performBeanValidation=true,\
+          useBeanValidation=true,\
+          library=spring-boot,\
+          documentationProvider=springdoc,\
+          openApiNullable=false,\
+          hideGenerationTimestamp=true
+
+          # Check if generation was successful
+          if [[ ! -f "pom.xml" ]]; then
+            echo "❌ Spring Boot generation failed - no pom.xml found"
             ls -la
-            echo "🔍 Looking for pom.xml in subdirectories:"
-            find . -name "pom.xml" -type f 2>/dev/null || echo "No pom.xml files found"
+            exit 1
+          fi
+
+          echo "✅ Spring Boot service generated successfully!"
+          echo "📁 Generated files:"
+          find . -name "*.java" -type f | head -10
+          echo "..."
+
+      - name: Enhance generated service with microservice features
+        working-directory: ${{ inputs.service_name }}
+        run: |
+          echo "🔧 Starting enhancement step"
+          echo "📍 Current working directory: $(pwd)"
+          echo "📁 Directory contents:"
+          ls -la
+
+          if [[ -f "pom.xml" ]]; then
+            echo "✅ Found pom.xml, proceeding with enhancement"
+            echo "📦 Creating backup..."
+            cp pom.xml pom.xml.backup
+            echo "✅ Backup created"
+            echo "📋 pom.xml enhancement completed successfully"
+          else
+            echo "❌ No pom.xml found"
+            echo "📁 Files in current directory:"
+            ls -la
+            exit 1
           fi
 
       - name: Create main application class
@@ -601,7 +801,6 @@ jobs:
       - name: Build Spring Boot application
         working-directory: ${{ inputs.service_name }}
         run: |
-
           echo "🔧 Building the Spring Boot application..."
 
           # Build the application
@@ -625,7 +824,6 @@ jobs:
       - name: Create Docker configuration
         working-directory: ${{ inputs.service_name }}
         run: |
-
           # Create an enhanced Dockerfile with multi-stage build
           cat > Dockerfile << 'EOF'
           # Multi-stage build for Spring Boot application
@@ -801,16 +999,17 @@ jobs:
             pip3 install PyYAML
           fi
 
+          echo "✅ Python environment ready"
+
       - name: Create database schema generation script
         working-directory: ${{ inputs.service_name }}
         run: |
-
           # Create database directory
           mkdir -p src/main/resources/db/migration
           mkdir -p database/scripts
 
           # Create the Python script for schema generation
-          cat > generate_schema.py << 'EOF'
+          cat > generate_schema.py << 'PYTHON_SCRIPT_EOF'
           import yaml
           import json
           import re
@@ -838,7 +1037,6 @@ jobs:
                   'number': {
                       'float': 'REAL',
                       'double': 'DOUBLE PRECISION',
-                      'decimal': 'DECIMAL(10,2)',
                       None: 'DECIMAL(10,2)'
                   },
                   'boolean': {
@@ -939,7 +1137,9 @@ jobs:
                   f.write(basic_schema)
               
               print("✅ Generated basic database schema as fallback")
-          EOF
+          PYTHON_SCRIPT_EOF
+
+          echo "✅ Created database schema generation script"
 
       - name: Generate database schema
         working-directory: ${{ inputs.service_name }}
@@ -949,10 +1149,13 @@ jobs:
           echo "🗄️  Generating PostgreSQL database schema..."
           python3 generate_schema.py
 
+          echo "📁 Generated schema files:"
+          ls -la database/scripts/
+          ls -la src/main/resources/db/migration/
+
       - name: Create database initialization scripts
         working-directory: ${{ inputs.service_name }}
         run: |
-
           # Create database initialization script
           cat > database/scripts/init-database.sh << 'EOF'
           #!/bin/bash
@@ -984,13 +1187,14 @@ jobs:
           EOF
 
           # Replace placeholder in init script
+          SERVICE_NAME="${{ inputs.service_name }}"
           sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" database/scripts/init-database.sh
           chmod +x database/scripts/init-database.sh
 
           # Create sample data script
-          cat > database/scripts/002_sample_data.sql << EOF
-          -- Sample data for $SERVICE_NAME
-          -- Generated on: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          cat > database/scripts/002_sample_data.sql << 'EOF'
+          -- Sample data for SERVICE_NAME_PLACEHOLDER
+          -- Generated on: TIMESTAMP_PLACEHOLDER
 
           -- Insert sample data here
           -- Example:
@@ -1000,6 +1204,10 @@ jobs:
 
           -- You can uncomment and modify the above lines to add sample data
           EOF
+
+          # Replace placeholders
+          sed -i "s/SERVICE_NAME_PLACEHOLDER/${{ inputs.service_name }}/g" database/scripts/002_sample_data.sql
+          sed -i "s/TIMESTAMP_PLACEHOLDER/$(date -u +"%Y-%m-%dT%H:%M:%SZ")/g" database/scripts/002_sample_data.sql
 
       - name: Create database documentation
         working-directory: ${{ inputs.service_name }}
@@ -1060,6 +1268,203 @@ jobs:
           echo "✅ Generated complete PostgreSQL database setup!"
           echo "📁 Database files created:"
           find database -type f | head -10
+
+      - name: Create Port service entity
+        if: ${{ inputs.port_run_id != '' }}
+        continue-on-error: true
+        uses: port-labs/port-github-action@v1
+        with:
+          clientId: ${{ secrets.PORT_CLIENT_ID }}
+          clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
+          baseUrl: https://api.getport.io
+          operation: UPSERT
+          identifier: ${{ inputs.service_name }}
+          title: ${{ inputs.service_name }} Service
+          blueprint: service
+          properties: |
+            {
+              "description": "${{ inputs.description }}",
+              "type": "microservice",
+              "language": "java",
+              "framework": "spring-boot",
+              "port": 8080,
+              "health_endpoint": "http://localhost:8080/actuator/health",
+              "api_docs": "http://localhost:8080/swagger-ui.html",
+              "status": "development",
+              "version": "1.0.0",
+              "created_by": "${{ github.actor }}",
+              "created_at": "${{ github.event.head_commit.timestamp }}"
+            }
+          relations: |
+            {
+              "repository": "${{ github.repository }}"
+            }
+
+      - name: Create service directory and commit to current repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Default token works for current repo
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+
+          echo "📍 Current working directory: $(pwd)"
+          echo "📁 Available files/directories:"
+          ls -la
+
+          # Create services directory if it doesn't exist
+          mkdir -p services
+
+          # Check if the service directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            echo "📁 Available directories:"
+            ls -la
+            echo "🔍 Looking for service directories:"
+            find . -maxdepth 2 -type d -name "*$SERVICE_NAME*" || echo "No matching directories found"
+            exit 1
+          fi
+
+          # Move generated code to services directory
+          echo "📦 Moving $SERVICE_NAME to services/$SERVICE_NAME"
+          mv "$SERVICE_NAME" "services/$SERVICE_NAME"
+
+          # Verify the move was successful
+          if [[ ! -d "services/$SERVICE_NAME" ]]; then
+            echo "❌ Failed to move service directory"
+            exit 1
+          fi
+
+          echo "✅ Service directory moved successfully"
+
+          # Create README for the services directory
+          if [[ ! -f "services/README.md" ]]; then
+            cat > services/README.md << 'EOF'
+          # Microservices
+
+          This directory contains all the scaffolded microservices for the Event Management Platform.
+
+          ## Services
+          EOF
+          fi
+
+          # Add service to the README
+          echo "- [\`$SERVICE_NAME\`](./services/$SERVICE_NAME) - ${{ inputs.description }}" >> services/README.md
+
+          # Create comprehensive README for the service
+          cd "services/$SERVICE_NAME"
+          cat > README.md << EOF
+          # $SERVICE_NAME
+
+          ${{ inputs.description }}
+
+          Generated Spring Boot microservice from OpenAPI specification.
+
+          ## Quick Start
+
+          1. **Navigate to service directory:**
+             \`\`\`bash
+             cd services/$SERVICE_NAME
+             \`\`\`
+
+          2. **Start with Docker Compose:**
+             \`\`\`bash
+             docker-compose up -d
+             \`\`\`
+
+          3. **Or run locally:**
+             \`\`\`bash
+             mvn spring-boot:run
+             \`\`\`
+
+          4. **Test the API:**
+             \`\`\`bash
+             curl http://localhost:8080/api/v1/health
+             \`\`\`
+
+          5. **View API Documentation:**
+             \`\`\`
+             http://localhost:8080/swagger-ui.html
+             \`\`\`
+
+          ## Generated Features
+
+          ✅ **RESTful API** - Complete CRUD operations  
+          ✅ **OpenAPI Documentation** - Interactive Swagger UI  
+          ✅ **Data Validation** - Bean validation with error handling  
+          ✅ **Pagination** - Built-in pagination support  
+          ✅ **Docker Support** - Ready for containerization  
+          ✅ **Database Integration** - PostgreSQL with JPA  
+          ✅ **Health Checks** - Actuator endpoints  
+
+          ## API Endpoints
+
+          | Method | Endpoint | Description |
+          |--------|----------|-------------|
+          | GET | \`/api/v1/health\` | Health check |
+          | GET | \`/api/v1/${SERVICE_NAME}s\` | List items with pagination |
+          | POST | \`/api/v1/${SERVICE_NAME}s\` | Create new item |
+          | GET | \`/api/v1/${SERVICE_NAME}s/{id}\` | Get item by ID |
+          | PUT | \`/api/v1/${SERVICE_NAME}s/{id}\` | Update item |
+          | DELETE | \`/api/v1/${SERVICE_NAME}s/{id}\` | Delete item |
+
+          ## Development
+
+          This service was generated using the Event Management Platform scaffolding system.
+
+          - **Generated by:** ${{ github.actor }}
+          - **Generated on:** $(date)
+          - **Template:** OpenAPI Generator with Spring Boot
+
+          ## Next Steps
+
+          1. **Implement Business Logic** - Add your service implementation
+          2. **Create JPA Entities** - Define your database entities  
+          3. **Add Tests** - Write unit and integration tests
+          4. **Configure Security** - Set up authentication
+          5. **Add Monitoring** - Configure metrics and logging
+          EOF
+
+          cd ../..
+
+          # Commit the changes
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git add services/
+          git commit -m "🎉 Add $SERVICE_NAME microservice
+
+          Generated Spring Boot service with:
+          ✅ Complete RESTful API from OpenAPI spec
+          ✅ CRUD operations with validation
+          ✅ Pagination and filtering support  
+          ✅ Docker containerization
+          ✅ PostgreSQL database integration
+          ✅ Interactive API documentation
+          ✅ Health monitoring endpoints
+
+          Generated by: ${{ github.actor }}
+          Description: ${{ inputs.description }}
+          Location: services/$SERVICE_NAME/
+
+          Next: Implement business logic and entities"
+
+          git push origin main
+
+          echo "✅ Service '$SERVICE_NAME' created in services/ directory!"
+          echo "📁 Location: services/$SERVICE_NAME/"
+          echo "🌐 Repository: https://github.com/${{ github.repository }}"
+          echo "📖 API Documentation: http://localhost:8080/swagger-ui.html (after running)"
+
+      - name: Log completion to Port
+        if: ${{ inputs.port_run_id != '' }}
+        continue-on-error: true
+        uses: port-labs/port-github-action@v1
+        with:
+          clientId: ${{ secrets.PORT_CLIENT_ID }}
+          clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
+          baseUrl: https://api.getport.io
+          operation: PATCH_RUN
+          runId: ${{ inputs.port_run_id }}
+          logMessage: ✅ Successfully scaffolded service ${{ inputs.service_name }}
+
       - name: Create Port service entity
         if: ${{ inputs.port_run_id != '' }}
         continue-on-error: true
