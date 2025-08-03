@@ -1051,7 +1051,8 @@ jobs:
               }
               
               if enum_values:
-                  return f"VARCHAR(50) CHECK (VALUE IN ({', '.join([f\"'{v}'\" for v in enum_values])}))"
+                  enum_list = "', '".join(enum_values)
+                  return f"VARCHAR(50) CHECK (VALUE IN ('{enum_list}'))"
               
               return type_mapping.get(openapi_type, {}).get(format_type, type_mapping.get(openapi_type, {}).get(None, 'TEXT'))
 
@@ -1081,8 +1082,8 @@ jobs:
               sql_statements.append("-- Generated PostgreSQL schema from OpenAPI specification")
               sql_statements.append(f"-- Generated on: {datetime.now().isoformat()}")
               sql_statements.append("")
-              sql_statements.append("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";")
-              sql_statements.append("CREATE EXTENSION IF NOT EXISTS \"pg_trgm\";")
+              sql_statements.append('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";')
+              sql_statements.append('CREATE EXTENSION IF NOT EXISTS "pg_trgm";')
               sql_statements.append("")
               
               # Generate tables for schemas
@@ -1117,7 +1118,7 @@ jobs:
           except Exception as e:
               print(f"⚠️  Could not generate database schema: {e}")
               # Create basic schema as fallback
-              basic_schema = f"""-- Basic schema
+              basic_schema = """-- Basic schema
           CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
           CREATE TABLE IF NOT EXISTS entities (
@@ -1138,8 +1139,8 @@ jobs:
               
               print("✅ Generated basic database schema as fallback")
           PYTHON_SCRIPT_EOF
-
-          echo "✅ Created database schema generation script"
+                    
+                    echo "✅ Created database schema generation script"
 
       - name: Generate database schema
         working-directory: ${{ inputs.service_name }}
