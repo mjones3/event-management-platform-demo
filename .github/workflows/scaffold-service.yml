@@ -116,35 +116,256 @@ jobs:
             exit 1
           fi
 
+      - name: Create service directory and commit to current repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          
+          echo "📍 Current working directory: $(pwd)"
+          echo "📁 Available files/directories:"
+          ls -la
+          
+          # Create services directory if it doesn't exist
+          mkdir -p services
+          
+          # Check if the service directory exists
+          if [[ ! -d "$SERVICE_NAME" ]]; then
+            echo "❌ Service directory not found: $SERVICE_NAME"
+            echo "📁 Available directories:"
+            ls -la
+            echo "🔍 Looking for service directories:"
+            find . -maxdepth 2 -type d -name "*$SERVICE_NAME*" || echo "No matching directories found"
+            
+            # Since the directory should exist, let's see if the working-directory approach left files elsewhere
+            echo "🔍 Searching for pom.xml files (indicator of service location):"
+            find . -name "pom.xml" -type f 2>/dev/null || echo "No pom.xml files found"
+            echo "🔍 Searching for any service-related files:"
+            find . -name "*.java" -type f 2>/dev/null | head -5 || echo "No Java files found"
+            
+            exit 1
+          fi
+          
+          # Check if services directory already contains the service
+          if [[ -d "services/$SERVICE_NAME" ]]; then
+            echo "⚠️  Service already exists in services directory, removing old version..."
+            rm -rf "services/$SERVICE_NAME"
+          fi
+          
+          # Copy the service to services directory instead of moving (safer)
+          echo "📦 Copying $SERVICE_NAME to services/$SERVICE_NAME"
+          cp -r "$SERVICE_NAME" "services/$SERVICE_NAME"
+          
+          # Verify the copy was successful
+          if [[ ! -d "services/$SERVICE_NAME" ]]; then
+            echo "❌ Failed to copy service directory"
+            echo "📁 Contents of services directory:"
+            ls -la services/
+            exit 1
+          fi
+          
+          # Clean up the original directory
+          echo "🧹 Cleaning up original directory"
+          rm -rf "$SERVICE_NAME"
+          
+          echo "✅ Service directory copied successfully"
+          echo "📁 Verifying services directory contents:"
+          ls -la "services/$SERVICE_NAME/" | head -10
+          
+          # Verify key files exist
+          if [[ -f "services/$SERVICE_NAME/pom.xml" ]]; then
+            echo "✅ pom.xml found in services directory"
+          else
+            echo "❌ pom.xml missing from services directory"
+            exit 1
+          fi
+          
+          # Create README for the services directory
+          if [[ ! -f "services/README.md" ]]; then
+            cat > services/README.md << 'EOF'
+          # Microservices
+          
+          This directory contains all the scaffolded microservices for the Event Management Platform.
+          
+          ## Services
+          EOF
+          fi
+          
+          # Add service to the README
+          echo "- [\`$SERVICE_NAME\`](./services/$SERVICE_NAME) - ${{ inputs.description }}" >> services/README.md
+          
+          # Create comprehensive README for the service
+          cd "services/$SERVICE_NAME"
+          cat > README.md << EOF
+          # $SERVICE_NAME
+          
+          ${{ inputs.description }}
+          
+          Generated Spring Boot microservice from OpenAPI specification.
+          
+          ## Quick Start
+          
+          1. **Navigate to service directory:**
+             \`\`\`bash
+             cd services/$SERVICE_NAME
+             \`\`\`
+          
+          2. **Start with Docker Compose:**
+             \`\`\`bash
+             docker-compose up -d
+             \`\`\`
+          
+          3. **Or run locally:**
+             \`\`\`bash
+             mvn spring-boot:run
+             \`\`\`
+          
+          4. **Test the API:**
+             \`\`\`bash
+             curl http://localhost:8080/api/v1/health
+             \`\`\`
+          
+          5. **View API Documentation:**
+             \`\`\`
+             http://localhost:8080/swagger-ui.html
+             \`\`\`
+          
+          ## Generated Features
+          
+          ✅ **RESTful API** - Complete CRUD operations  
+          ✅ **OpenAPI Documentation** - Interactive Swagger UI  
+          ✅ **Data Validation** - Bean validation with error handling  
+          ✅ **Pagination** - Built-in pagination support  
+          ✅ **Docker Support** - Ready for containerization  
+          ✅ **Database Integration** - PostgreSQL with JPA  
+          ✅ **Health Checks** - Actuator endpoints  
+          
+          ## API Endpoints
+          
+          | Method | Endpoint | Description |
+          |--------|----------|-------------|
+          | GET | \`/api/v1/health\` | Health check |
+          | GET | \`/api/v1/${SERVICE_NAME}s\` | List items with pagination |
+          | POST | \`/api/v1/${SERVICE_NAME}s\` | Create new item |
+          | GET | \`/api/v1/${SERVICE_NAME}s/{id}\` | Get item by ID |
+          | PUT | \`/api/v1/${SERVICE_NAME}s/{id}\` | Update item |
+          | DELETE | \`/api/v1/${SERVICE_NAME}s/{id}\` | Delete item |
+          
+          ## Development
+          
+          This service was generated using the Event Management Platform scaffolding system.
+          
+          - **Generated by:** ${{ github.actor }}
+          - **Generated on:** $(date)
+          - **Template:** OpenAPI Generator with Spring Boot
+          
+          ## Next Steps
+          
+          1. **Implement Business Logic** - Add your service implementation
+          2. **Create JPA Entities** - Define your database entities  
+          3. **Add Tests** - Write unit and integration tests
+          4. **Configure Security** - Set up authentication
+          5. **Add Monitoring** - Configure metrics and logging
+          EOF
+          
+          cd ../..
+          
+          # Commit the changes
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git add services/
+          git commit -m "🎉 Add $SERVICE_NAME microservice
+
+          Generated Spring Boot service with:
+          ✅ Complete RESTful API from OpenAPI spec
+          ✅ CRUD operations with validation
+          ✅ Pagination and filtering support  
+          ✅ Docker containerization
+          ✅ PostgreSQL database integration
+          ✅ Interactive API documentation
+          ✅ Health monitoring endpoints
+          
+          Generated by: ${{ github.actor }}
+          Description: ${{ inputs.description }}
+          Location: services/$SERVICE_NAME/
+          
+          Next: Implement business logic and entities"
+          
+          git push origin main
+          
+          echo "✅ Service '$SERVICE_NAME' created in services/ directory!"
+          echo "📁 Location: services/$SERVICE_NAME/"
+          echo "🌐 Repository: https://github.com/${{ github.repository }}"
+          echo "📖 API Documentation: http://localhost:8080/swagger-ui.html (after running)"- name: Validate service name and setup directories
+        
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          
+          echo "🔧 Starting service generation for: $SERVICE_NAME"
+          echo "📍 Current working directory: $(pwd)"
+          echo "📁 Available files/directories:"
+          ls -la
+          
+          # Validate service name
+          if [[ ! "$SERVICE_NAME" =~ ^[a-z][a-z0-9-]*[a-z0-9]$ ]] || [[ ${#SERVICE_NAME} -lt 3 ]] || [[ ${#SERVICE_NAME} -gt 50 ]]; then
+            echo "❌ Invalid service name: $SERVICE_NAME"
+            echo "Service name must be 3-50 characters, lowercase, kebab-case (e.g., my-service)"
+            exit 1
+          fi
+          
+          # Create directory for the new service
+          echo "📁 Creating service directory: $SERVICE_NAME"
+          mkdir -p "$SERVICE_NAME"
+          
+          # Verify directory was created
+          if [[ -d "$SERVICE_NAME" ]]; then
+            echo "✅ Service directory created successfully: $SERVICE_NAME"
+            echo "📁 Directory contents:"
+            ls -la "$SERVICE_NAME"
+          else
+            echo "❌ Failed to create service directory: $SERVICE_NAME"
+            exit 1
+          fi
+          
+          # Test if we can write to the directory
+          echo "test" > "$SERVICE_NAME/test.txt"
+          if [[ -f "$SERVICE_NAME/test.txt" ]]; then
+            echo "✅ Directory is writable"
+            rm "$SERVICE_NAME/test.txt"
+          else
+            echo "❌ Directory is not writable"
+            exit 1
+          fi
+
       - name: Download OpenAPI Generator
         working-directory: ${{ inputs.service_name }}
         run: |
           echo "📍 Working in directory: $(pwd)"
           echo "📁 Current directory contents:"
           ls -la
-
+          
           # Download OpenAPI Generator CLI
           echo "📥 Downloading OpenAPI Generator..."
           if ! wget -q https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/7.2.0/openapi-generator-cli-7.2.0.jar -O openapi-generator-cli.jar; then
             echo "❌ Failed to download OpenAPI Generator"
             exit 1
           fi
-
+          
           # Verify download
           if [[ ! -f "openapi-generator-cli.jar" ]] || [[ ! -s "openapi-generator-cli.jar" ]]; then
             echo "❌ OpenAPI Generator download failed or file is empty"
             exit 1
           fi
-
+          
           echo "✅ OpenAPI Generator downloaded successfully ($(ls -lh openapi-generator-cli.jar | awk '{print $5}'))"
 
       - name: Fetch or generate OpenAPI specification
         working-directory: ${{ inputs.service_name }}
         run: |
           echo "📋 Fetching OpenAPI specification..."
-
+          
           SPEC_FOUND=false
-
+          
           # Check if user provided a custom OpenAPI spec URL
           if [ -n "${{ inputs.openapi_spec_url }}" ]; then
             echo "🌐 Using provided OpenAPI spec URL: ${{ inputs.openapi_spec_url }}"
@@ -166,7 +387,7 @@ jobs:
               echo "Will fall back to repository search or template generation"
             fi
           fi
-
+          
           # Export the result for next step
           echo "SPEC_FOUND=$SPEC_FOUND" >> $GITHUB_ENV
 
@@ -197,7 +418,7 @@ jobs:
         working-directory: ${{ inputs.service_name }}
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
-
+          
           if [[ "$SPEC_FOUND" == "false" ]]; then
             echo "⚠️  Could not find existing OpenAPI spec, creating a template based on service name..."
             
@@ -218,10 +439,10 @@ jobs:
               description: Production server
             - url: http://localhost:8080/api/v1
               description: Development server
-
+          
           security:
             - BearerAuth: []
-
+          
           paths:
             /health:
               get:
@@ -373,7 +594,7 @@ jobs:
                     $ref: '#/components/responses/NotFound'
                   '401':
                     $ref: '#/components/responses/Unauthorized'
-
+          
           components:
             securitySchemes:
               BearerAuth:
@@ -544,14 +765,14 @@ jobs:
                   application/json:
                     schema:
                       $ref: '#/components/schemas/ErrorResponse'
-
+          
           tags:
             - name: SERVICE_NAME_CAMEL_PLACEHOLDER
               description: Item management operations
             - name: Health
               description: Service health endpoints
           TEMPLATE_EOF
-
+          
             # Replace placeholders in the spec
             sed -i "s/SERVICE_NAME_PLACEHOLDER/${SERVICE_NAME}/g" api-spec.yaml
             sed -i "s/SERVICE_NAME_CAMEL_PLACEHOLDER/${SERVICE_NAME_CAMEL}/g" api-spec.yaml
@@ -572,38 +793,38 @@ jobs:
             echo "❌ OpenAPI spec file is empty"
             exit 1
           fi
-
+          
           # Show first few lines of the spec
           echo "📄 OpenAPI specification preview:"
           head -15 api-spec.yaml
           echo "..."
-
+          
           # Test if Java is available and working
           echo "☕ Testing Java installation..."
           if ! java -version; then
             echo "❌ Java is not available or not working"
             exit 1
           fi
-
+          
           # Test if the JAR file is executable
           echo "🧪 Testing OpenAPI Generator..."
           if ! java -jar openapi-generator-cli.jar version; then
             echo "❌ OpenAPI Generator is not working"
             exit 1
           fi
-
+          
           echo "✅ Everything ready for code generation"
 
       - name: Generate Spring Boot application
         working-directory: ${{ inputs.service_name }}
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
-
+          
           # Generate Spring Boot application
           echo "🔧 Generating Spring Boot service..."
-
+          
           PACKAGE_NAME="com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.')"
-
+          
           java -jar openapi-generator-cli.jar generate \
             -i api-spec.yaml \
             -g spring \
@@ -629,14 +850,14 @@ jobs:
           documentationProvider=springdoc,\
           openApiNullable=false,\
           hideGenerationTimestamp=true
-
+          
           # Check if generation was successful
           if [[ ! -f "pom.xml" ]]; then
             echo "❌ Spring Boot generation failed - no pom.xml found"
             ls -la
             exit 1
           fi
-
+          
           echo "✅ Spring Boot service generated successfully!"
           echo "📁 Generated files:"
           find . -name "*.java" -type f | head -10
@@ -649,7 +870,7 @@ jobs:
           echo "📍 Current working directory: $(pwd)"
           echo "📁 Directory contents:"
           ls -la
-
+          
           if [[ -f "pom.xml" ]]; then
             echo "✅ Found pom.xml, proceeding with enhancement"
             echo "📦 Creating backup..."
@@ -667,32 +888,32 @@ jobs:
         working-directory: ${{ inputs.service_name }}
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
-
+          
           # Find the main application class and ensure it exists and is correct
           PACKAGE_DIR="src/main/java/com/eventplatform/$(echo $SERVICE_NAME | tr '-' '/')"
           MAIN_CLASS_NAME="$(echo $SERVICE_NAME | sed 's/-//g' | sed 's/\b\w/\U&/g')Application"
-
+          
           echo "📝 Creating/updating main application class: $MAIN_CLASS_NAME"
-
+          
           # Create the main application class
           mkdir -p "$PACKAGE_DIR"
           cat > "$PACKAGE_DIR/${MAIN_CLASS_NAME}.java" << EOF
           package com.eventplatform.$(echo $SERVICE_NAME | tr '-' '.');
-
+          
           import org.springframework.boot.SpringApplication;
           import org.springframework.boot.autoconfigure.SpringBootApplication;
           import org.springframework.web.bind.annotation.GetMapping;
           import org.springframework.web.bind.annotation.RestController;
           import java.util.Map;
           import java.util.HashMap;
-
+          
           @SpringBootApplication
           public class ${MAIN_CLASS_NAME} {
               public static void main(String[] args) {
                   SpringApplication.run(${MAIN_CLASS_NAME}.class, args);
               }
           }
-
+          
           @RestController
           class HealthController {
               
@@ -723,13 +944,13 @@ jobs:
         working-directory: ${{ inputs.service_name }}
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
-
+          
           # Create application.yml with proper configuration
           mkdir -p src/main/resources
           cat > src/main/resources/application.yml << 'EOF'
           server:
             port: ${PORT:8080}
-
+          
           spring:
             application:
               name: SERVICE_NAME_PLACEHOLDER
@@ -758,13 +979,13 @@ jobs:
               export:
                 prometheus:
                   enabled: true
-
+          
           logging:
             level:
               com.eventplatform: ${LOG_LEVEL:INFO}
               org.springframework.web: ${WEB_LOG_LEVEL:WARN}
               org.hibernate.SQL: ${SQL_LOG_LEVEL:WARN}
-
+          
           springdoc:
             api-docs:
               path: /api-docs
@@ -772,28 +993,28 @@ jobs:
               path: /swagger-ui.html
               operations-sorter: method
           EOF
-
+          
           # Replace placeholders in application.yml
           sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" src/main/resources/application.yml
           sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" src/main/resources/application.yml
-
+          
           # Create application.properties as fallback
           cat > src/main/resources/application.properties << EOF
           # Application Configuration
           spring.application.name=$SERVICE_NAME
           server.port=8080
-
+          
           # Database Configuration
           spring.datasource.url=jdbc:postgresql://localhost:5432/${SERVICE_NAME//-/_}_db
           spring.datasource.username=postgres
           spring.datasource.password=password
           spring.jpa.hibernate.ddl-auto=create-drop
           spring.jpa.show-sql=false
-
+          
           # Actuator Configuration
           management.endpoints.web.exposure.include=health,info,metrics
           management.endpoint.health.show-details=always
-
+          
           # Logging Configuration
           logging.level.com.eventplatform=INFO
           EOF
@@ -802,7 +1023,7 @@ jobs:
         working-directory: ${{ inputs.service_name }}
         run: |
           echo "🔧 Building the Spring Boot application..."
-
+          
           # Build the application
           if command -v mvn &> /dev/null; then
             echo "📦 Building with Maven..."
@@ -828,40 +1049,40 @@ jobs:
           cat > Dockerfile << 'EOF'
           # Multi-stage build for Spring Boot application
           FROM maven:3.9-openjdk-17-slim AS builder
-
+          
           WORKDIR /app
-
+          
           # Copy pom.xml first for better caching
           COPY pom.xml .
-
+          
           # Download dependencies
           RUN mvn dependency:go-offline -B
-
+          
           # Copy source code
           COPY src ./src
-
+          
           # Build the application
           RUN mvn clean package -DskipTests -B
-
+          
           # Runtime stage
           FROM openjdk:17-jdk-slim
-
+          
           WORKDIR /app
-
+          
           # Copy the JAR from builder stage
           COPY --from=builder /app/target/*.jar app.jar
-
+          
           # Create non-root user
           RUN addgroup --system spring && adduser --system spring --ingroup spring
           USER spring:spring
-
+          
           # Expose port
           EXPOSE 8080
-
+          
           # Health check
           HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
               CMD curl -f http://localhost:8080/actuator/health || exit 1
-
+          
           # Run the application
           ENTRYPOINT ["java", "-jar", "app.jar"]
           EOF
@@ -870,7 +1091,7 @@ jobs:
         working-directory: ${{ inputs.service_name }}
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
-
+          
           # Create docker-compose.yml with working setup
           cat > docker-compose.yml << 'EOF'
           version: '3.8'
@@ -910,11 +1131,11 @@ jobs:
                 interval: 10s
                 timeout: 5s
                 retries: 5
-
+          
           volumes:
             postgres_data:
           EOF
-
+          
           # Replace placeholders in docker-compose.yml
           sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" docker-compose.yml
           sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" docker-compose.yml
@@ -923,14 +1144,14 @@ jobs:
         working-directory: ${{ inputs.service_name }}
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
-
+          
           # Create a startup script
           cat > start.sh << 'EOF'
           #!/bin/bash
           set -e
-
+          
           echo "🚀 Starting SERVICE_NAME_PLACEHOLDER..."
-
+          
           # Check if Docker is available
           if command -v docker &> /dev/null; then
               echo "🐳 Starting with Docker Compose..."
@@ -953,35 +1174,35 @@ jobs:
               java -jar target/*.jar
           fi
           EOF
-
+          
           # Replace placeholder in start.sh
           sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" start.sh
           chmod +x start.sh
-
+          
           # Create a test script
           cat > test-service.sh << 'EOF'
           #!/bin/bash
           set -e
-
+          
           SERVICE_URL="http://localhost:8080"
-
+          
           echo "🧪 Testing SERVICE_NAME_PLACEHOLDER..."
-
+          
           # Test root endpoint
           echo "Testing root endpoint..."
           curl -s "$SERVICE_URL/" | jq . || echo "Root endpoint test failed"
-
+          
           # Test health endpoint
           echo "Testing health endpoint..."
           curl -s "$SERVICE_URL/actuator/health" | jq . || echo "Health endpoint test failed"
-
+          
           # Test API health endpoint
           echo "Testing API health endpoint..."
           curl -s "$SERVICE_URL/api/v1/health" | jq . || echo "API health endpoint test failed"
-
+          
           echo "✅ Service tests completed!"
           EOF
-
+          
           # Replace placeholder in test-service.sh
           sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" test-service.sh
           chmod +x test-service.sh
@@ -993,12 +1214,12 @@ jobs:
             echo "Installing Python3..."
             sudo apt-get update && sudo apt-get install -y python3 python3-pip
           fi
-
+          
           if ! python3 -c "import yaml" 2>/dev/null; then
             echo "Installing PyYAML..."
             pip3 install PyYAML
           fi
-
+          
           echo "✅ Python environment ready"
 
       - name: Create database schema generation script
@@ -1007,7 +1228,7 @@ jobs:
           # Create database directory
           mkdir -p src/main/resources/db/migration
           mkdir -p database/scripts
-
+          
           # Create the Python script for schema generation
           cat > generate_schema.py << 'PYTHON_SCRIPT_EOF'
           import yaml
@@ -1142,17 +1363,17 @@ jobs:
                     
                     echo "✅ Created database schema generation script"
 
-      - name: Generate database schema
-        working-directory: ${{ inputs.service_name }}
-        run: |
-          SERVICE_NAME="${{ inputs.service_name }}"
-
-          echo "🗄️  Generating PostgreSQL database schema..."
-          python3 generate_schema.py
-
-          echo "📁 Generated schema files:"
-          ls -la database/scripts/
-          ls -la src/main/resources/db/migration/
+                - name: Generate database schema
+                  working-directory: ${{ inputs.service_name }}
+                  run: |
+                    SERVICE_NAME="${{ inputs.service_name }}"
+                    
+                    echo "🗄️  Generating PostgreSQL database schema..."
+                    python3 generate_schema.py
+                    
+                    echo "📁 Generated schema files:"
+                    ls -la database/scripts/
+                    ls -la src/main/resources/db/migration/
 
       - name: Create database initialization scripts
         working-directory: ${{ inputs.service_name }}
@@ -1161,51 +1382,51 @@ jobs:
           cat > database/scripts/init-database.sh << 'EOF'
           #!/bin/bash
           set -e
-
+          
           DB_NAME=${1:-"SERVICE_NAME_DB_PLACEHOLDER"}
           DB_USER=${2:-"postgres"}
           DB_PASSWORD=${3:-"password"}
           DB_HOST=${4:-"localhost"}
           DB_PORT=${5:-"5432"}
-
+          
           echo "🗄️  Initializing database: $DB_NAME"
-
+          
           # Wait for PostgreSQL to be ready
           until PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -c '\q'; do
             echo "⏳ Waiting for PostgreSQL..."
             sleep 2
           done
-
+          
           # Create database if it doesn't exist
           PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1 || \
           PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -c "CREATE DATABASE \"$DB_NAME\""
-
+          
           # Run schema script
           echo "📋 Running schema migrations..."
           PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f 001_initial_schema.sql
-
+          
           echo "✅ Database initialization completed!"
           EOF
-
+          
           # Replace placeholder in init script
           SERVICE_NAME="${{ inputs.service_name }}"
           sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" database/scripts/init-database.sh
           chmod +x database/scripts/init-database.sh
-
+          
           # Create sample data script
           cat > database/scripts/002_sample_data.sql << 'EOF'
           -- Sample data for SERVICE_NAME_PLACEHOLDER
           -- Generated on: TIMESTAMP_PLACEHOLDER
-
+          
           -- Insert sample data here
           -- Example:
           -- INSERT INTO entities (name, description, status) VALUES 
           --   ('Sample Entity 1', 'This is a sample entity for testing', 'ACTIVE'),
           --   ('Sample Entity 2', 'Another sample entity', 'ACTIVE');
-
+          
           -- You can uncomment and modify the above lines to add sample data
           EOF
-
+          
           # Replace placeholders
           sed -i "s/SERVICE_NAME_PLACEHOLDER/${{ inputs.service_name }}/g" database/scripts/002_sample_data.sql
           sed -i "s/TIMESTAMP_PLACEHOLDER/$(date -u +"%Y-%m-%dT%H:%M:%SZ")/g" database/scripts/002_sample_data.sql
@@ -1214,28 +1435,28 @@ jobs:
         working-directory: ${{ inputs.service_name }}
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
-
+          
           # Create database documentation
           cat > database/README.md << EOF
           # Database Schema for $SERVICE_NAME
-
+          
           This directory contains the PostgreSQL database schema and related scripts for the $SERVICE_NAME.
-
+          
           ## 📁 Structure
-
+          
           - \`scripts/\` - Database scripts and migrations
             - \`001_initial_schema.sql\` - Initial database schema
             - \`002_sample_data.sql\` - Sample data for development
             - \`init-database.sh\` - Database initialization script
-
+          
           ## 🚀 Quick Start
-
+          
           ### Using Docker Compose (Recommended)
           The database is automatically set up when you run:
           \`\`\`bash
           docker-compose up -d
           \`\`\`
-
+          
           ### Manual Setup
           1. **Start PostgreSQL:**
              \`\`\`bash
@@ -1245,27 +1466,27 @@ jobs:
                -e POSTGRES_PASSWORD=password \\
                -p 5432:5432 postgres:15
              \`\`\`
-
+          
           2. **Initialize the database:**
              \`\`\`bash
              cd database/scripts
              ./init-database.sh
              \`\`\`
-
+          
           3. **Connect to the database:**
              \`\`\`bash
              psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db
              \`\`\`
-
+          
           ## 📋 Connection Details
-
+          
           - **Host:** localhost
           - **Port:** 5432
           - **Database:** ${SERVICE_NAME//-/_}_db
           - **Username:** postgres
           - **Password:** password
           EOF
-
+          
           echo "✅ Generated complete PostgreSQL database setup!"
           echo "📁 Database files created:"
           find database -type f | head -10
@@ -1294,7 +1515,8 @@ jobs:
               "status": "development",
               "version": "1.0.0",
               "created_by": "${{ github.actor }}",
-              "created_at": "${{ github.event.head_commit.timestamp }}"
+              "created_at": "${{ github.event.head_commit.timestamp }}",
+              "myOpenApi": "https://api.eventplatform.com/${{ inputs.service_name }}/v1/api-docs"
             }
           relations: |
             {
@@ -1303,17 +1525,17 @@ jobs:
 
       - name: Create service directory and commit to current repository
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Default token works for current repo
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Default token works for current repo
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
-
+          
           echo "📍 Current working directory: $(pwd)"
           echo "📁 Available files/directories:"
           ls -la
-
+          
           # Create services directory if it doesn't exist
           mkdir -p services
-
+          
           # Check if the service directory exists
           if [[ ! -d "$SERVICE_NAME" ]]; then
             echo "❌ Service directory not found: $SERVICE_NAME"
@@ -1323,71 +1545,71 @@ jobs:
             find . -maxdepth 2 -type d -name "*$SERVICE_NAME*" || echo "No matching directories found"
             exit 1
           fi
-
+          
           # Move generated code to services directory
           echo "📦 Moving $SERVICE_NAME to services/$SERVICE_NAME"
           mv "$SERVICE_NAME" "services/$SERVICE_NAME"
-
+          
           # Verify the move was successful
           if [[ ! -d "services/$SERVICE_NAME" ]]; then
             echo "❌ Failed to move service directory"
             exit 1
           fi
-
+          
           echo "✅ Service directory moved successfully"
-
+          
           # Create README for the services directory
           if [[ ! -f "services/README.md" ]]; then
             cat > services/README.md << 'EOF'
           # Microservices
-
+          
           This directory contains all the scaffolded microservices for the Event Management Platform.
-
+          
           ## Services
           EOF
           fi
-
+          
           # Add service to the README
           echo "- [\`$SERVICE_NAME\`](./services/$SERVICE_NAME) - ${{ inputs.description }}" >> services/README.md
-
+          
           # Create comprehensive README for the service
           cd "services/$SERVICE_NAME"
           cat > README.md << EOF
           # $SERVICE_NAME
-
+          
           ${{ inputs.description }}
-
+          
           Generated Spring Boot microservice from OpenAPI specification.
-
+          
           ## Quick Start
-
+          
           1. **Navigate to service directory:**
              \`\`\`bash
              cd services/$SERVICE_NAME
              \`\`\`
-
+          
           2. **Start with Docker Compose:**
              \`\`\`bash
              docker-compose up -d
              \`\`\`
-
+          
           3. **Or run locally:**
              \`\`\`bash
              mvn spring-boot:run
              \`\`\`
-
+          
           4. **Test the API:**
              \`\`\`bash
              curl http://localhost:8080/api/v1/health
              \`\`\`
-
+          
           5. **View API Documentation:**
              \`\`\`
              http://localhost:8080/swagger-ui.html
              \`\`\`
-
+          
           ## Generated Features
-
+          
           ✅ **RESTful API** - Complete CRUD operations  
           ✅ **OpenAPI Documentation** - Interactive Swagger UI  
           ✅ **Data Validation** - Bean validation with error handling  
@@ -1395,9 +1617,9 @@ jobs:
           ✅ **Docker Support** - Ready for containerization  
           ✅ **Database Integration** - PostgreSQL with JPA  
           ✅ **Health Checks** - Actuator endpoints  
-
+          
           ## API Endpoints
-
+          
           | Method | Endpoint | Description |
           |--------|----------|-------------|
           | GET | \`/api/v1/health\` | Health check |
@@ -1406,26 +1628,26 @@ jobs:
           | GET | \`/api/v1/${SERVICE_NAME}s/{id}\` | Get item by ID |
           | PUT | \`/api/v1/${SERVICE_NAME}s/{id}\` | Update item |
           | DELETE | \`/api/v1/${SERVICE_NAME}s/{id}\` | Delete item |
-
+          
           ## Development
-
+          
           This service was generated using the Event Management Platform scaffolding system.
-
+          
           - **Generated by:** ${{ github.actor }}
           - **Generated on:** $(date)
           - **Template:** OpenAPI Generator with Spring Boot
-
+          
           ## Next Steps
-
+          
           1. **Implement Business Logic** - Add your service implementation
           2. **Create JPA Entities** - Define your database entities  
           3. **Add Tests** - Write unit and integration tests
           4. **Configure Security** - Set up authentication
           5. **Add Monitoring** - Configure metrics and logging
           EOF
-
+          
           cd ../..
-
+          
           # Commit the changes
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
@@ -1440,15 +1662,15 @@ jobs:
           ✅ PostgreSQL database integration
           ✅ Interactive API documentation
           ✅ Health monitoring endpoints
-
+          
           Generated by: ${{ github.actor }}
           Description: ${{ inputs.description }}
           Location: services/$SERVICE_NAME/
-
+          
           Next: Implement business logic and entities"
-
+          
           git push origin main
-
+          
           echo "✅ Service '$SERVICE_NAME' created in services/ directory!"
           echo "📁 Location: services/$SERVICE_NAME/"
           echo "🌐 Repository: https://github.com/${{ github.repository }}"
@@ -1465,176 +1687,3 @@ jobs:
           operation: PATCH_RUN
           runId: ${{ inputs.port_run_id }}
           logMessage: ✅ Successfully scaffolded service ${{ inputs.service_name }}
-
-      - name: Create Port service entity
-        if: ${{ inputs.port_run_id != '' }}
-        continue-on-error: true
-        uses: port-labs/port-github-action@v1
-        with:
-          clientId: ${{ secrets.PORT_CLIENT_ID }}
-          clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
-          baseUrl: https://api.getport.io
-          operation: UPSERT
-          identifier: ${{ inputs.service_name }}
-          title: "${{ inputs.service_name }} Service"
-          blueprint: "service"
-          properties: |
-            {
-              "description": "${{ inputs.description }}",
-              "type": "microservice",
-              "language": "java",
-              "framework": "spring-boot",
-              "port": 8080,
-              "health_endpoint": "http://localhost:8080/actuator/health",
-              "api_docs": "http://localhost:8080/swagger-ui.html",
-              "status": "development",
-              "version": "1.0.0",
-              "created_by": "${{ github.actor }}",
-              "created_at": "${{ github.event.head_commit.timestamp }}"
-            }
-          relations: |
-            {
-              "repository": "${{ github.repository }}"
-            }
-
-      - name: Create service directory and commit to current repository
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Default token works for current repo
-        run: |
-          SERVICE_NAME="${{ inputs.service_name }}"
-
-          # Create services directory if it doesn't exist
-          mkdir -p services
-
-          # Move generated code to services directory
-          mv "$SERVICE_NAME" "services/$SERVICE_NAME"
-
-          # Create README for the services directory
-          if [[ ! -f "services/README.md" ]]; then
-            cat > services/README.md << 'EOF'
-          # Microservices
-
-          This directory contains all the scaffolded microservices for the Event Management Platform.
-
-          ## Services
-          EOF
-          fi
-
-          # Add service to the README
-          echo "- [\`$SERVICE_NAME\`](./services/$SERVICE_NAME) - ${{ inputs.description }}" >> services/README.md
-
-          # Create comprehensive README for the service
-          cd "services/$SERVICE_NAME"
-          cat > README.md << EOF
-          # $SERVICE_NAME
-
-          ${{ inputs.description }}
-
-          Generated Spring Boot microservice from OpenAPI specification.
-
-          ## Quick Start
-
-          1. **Navigate to service directory:**
-             \`\`\`bash
-             cd services/$SERVICE_NAME
-             \`\`\`
-
-          2. **Start with Docker Compose:**
-             \`\`\`bash
-             docker-compose up -d
-             \`\`\`
-
-          3. **Or run locally:**
-             \`\`\`bash
-             mvn spring-boot:run
-             \`\`\`
-
-          4. **Test the API:**
-             \`\`\`bash
-             curl http://localhost:8080/api/v1/health
-             \`\`\`
-
-          5. **View API Documentation:**
-             \`\`\`
-             http://localhost:8080/swagger-ui.html
-             \`\`\`
-
-          ## Generated Features
-
-          ✅ **RESTful API** - Complete CRUD operations  
-          ✅ **OpenAPI Documentation** - Interactive Swagger UI  
-          ✅ **Data Validation** - Bean validation with error handling  
-          ✅ **Pagination** - Built-in pagination support  
-          ✅ **Docker Support** - Ready for containerization  
-          ✅ **Database Integration** - PostgreSQL with JPA  
-          ✅ **Health Checks** - Actuator endpoints  
-
-          ## API Endpoints
-
-          | Method | Endpoint | Description |
-          |--------|----------|-------------|
-          | GET | \`/api/v1/health\` | Health check |
-          | GET | \`/api/v1/${SERVICE_NAME}s\` | List items with pagination |
-          | POST | \`/api/v1/${SERVICE_NAME}s\` | Create new item |
-          | GET | \`/api/v1/${SERVICE_NAME}s/{id}\` | Get item by ID |
-          | PUT | \`/api/v1/${SERVICE_NAME}s/{id}\` | Update item |
-          | DELETE | \`/api/v1/${SERVICE_NAME}s/{id}\` | Delete item |
-
-          ## Development
-
-          This service was generated using the Event Management Platform scaffolding system.
-
-          - **Generated by:** ${{ github.actor }}
-          - **Generated on:** $(date)
-          - **Template:** OpenAPI Generator with Spring Boot
-
-          ## Next Steps
-
-          1. **Implement Business Logic** - Add your service implementation
-          2. **Create JPA Entities** - Define your database entities  
-          3. **Add Tests** - Write unit and integration tests
-          4. **Configure Security** - Set up authentication
-          5. **Add Monitoring** - Configure metrics and logging
-          EOF
-
-          cd ../..
-
-          # Commit the changes
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
-          git add services/
-          git commit -m "🎉 Add $SERVICE_NAME microservice
-
-          Generated Spring Boot service with:
-          ✅ Complete RESTful API from OpenAPI spec
-          ✅ CRUD operations with validation
-          ✅ Pagination and filtering support  
-          ✅ Docker containerization
-          ✅ PostgreSQL database integration
-          ✅ Interactive API documentation
-          ✅ Health monitoring endpoints
-
-          Generated by: ${{ github.actor }}
-          Description: ${{ inputs.description }}
-          Location: services/$SERVICE_NAME/
-
-          Next: Implement business logic and entities"
-
-          git push origin main
-
-          echo "✅ Service '$SERVICE_NAME' created in services/ directory!"
-          echo "📁 Location: services/$SERVICE_NAME/"
-          echo "🌐 Repository: https://github.com/${{ github.repository }}"
-          echo "📖 API Documentation: http://localhost:8080/swagger-ui.html (after running)"
-
-          - name: Log completion to Port
-                    if: ${{ inputs.port_run_id != '' }}
-                    continue-on-error: true
-                    uses: port-labs/port-github-action@v1
-                    with:
-                      clientId: ${{ secrets.PORT_CLIENT_ID }}
-                      clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
-                      baseUrl: https://api.getport.io
-                      operation: PATCH_RUN
-                      runId: ${{ inputs.port_run_id }}
-                      logMessage: "✅ Successfully scaffolded service: ${{ inputs.service_name }}"
