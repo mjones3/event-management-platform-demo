@@ -1,0 +1,15 @@
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/controller/HealthApi.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/model/PagedUserManagementServiceResponse.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/model/UserManagementServiceResponse.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/RFC3339DateFormat.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/controller/UserManagementServiceApiController.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/controller/UserManagementServiceApi.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/model/CreateUserManagementServiceRequest.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/controller/HealthApiController.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/config/HomeController.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/controller/ApiUtil.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/model/UpdateUserManagementServiceRequest.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/model/ErrorResponse.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/model/HealthResponse.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/config/SpringDocConfiguration.java
+/Users/mjones/work/event-management-platform-demo/services/user-management-service/src/main/java/com/eventplatform/user/management/service/OpenApiGeneratorApplication.java
