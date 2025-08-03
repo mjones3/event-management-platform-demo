@@ -1,0 +1,2447 @@
+openapi: 3.0.3
+info:
+  contact:
+    email: api-support@eventplatform.com
+    name: Event Platform Team
+  description: "Comprehensive service for managing event registrations, payment processing,\
+    \ \nattendance tracking, and real-time analytics with A/B testing capabilities.\n\
+    \nFeatures:\n- Complex registration workflows with custom form handling\n- Multi-tier\
+    \ ticketing system with dynamic pricing\n- Real-time analytics and time-series\
+    \ data\n- Payment processing integration\n- Attendance tracking with multiple\
+    \ check-in methods\n- A/B testing framework for event optimization\n- Advanced\
+    \ reporting and metrics aggregation\n"
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  title: Registration & Analytics Service API
+  version: 1.0.0
+externalDocs:
+  description: Find more information about the Event Management Platform
+  url: https://docs.eventplatform.com/registration-analytics-service
+servers:
+- description: Production server
+  url: https://api.eventplatform.com/registration/v1
+- description: Staging server
+  url: https://staging-api.eventplatform.com/registration/v1
+- description: Local development server
+  url: http://localhost:8083/api/v1
+security:
+- BearerAuth: []
+- ApiKeyAuth: []
+tags:
+- description: |
+    Core registration management including creation, updates, and lifecycle management.
+    Supports complex workflows with custom fields and multi-tier ticketing.
+  name: Registrations
+- description: "Attendance tracking with multiple check-in methods including QR codes,\
+    \ NFC, \nmanual entry, and facial recognition.\n"
+  name: Check-ins
+- description: "Payment processing, refunds, and financial transaction management\
+    \ with \nsupport for multiple payment methods.\n"
+  name: Payments
+- description: |
+    Comprehensive analytics including real-time metrics, conversion tracking,
+    and behavioral analytics with time-series data.
+  name: Analytics
+- description: |
+    A/B testing framework for optimizing conversion rates and user experience
+    with statistical significance testing.
+  name: Experiments
+- description: "Advanced reporting capabilities with multiple output formats and \n\
+    customizable data aggregations.\n"
+  name: Reports
+paths:
+  /registrations:
+    get:
+      description: |
+        Retrieve registrations with complex filtering, sorting, and pagination.
+        Supports querying by multiple criteria and date ranges.
+      parameters:
+      - description: Page number (0-based)
+        explode: true
+        in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          type: integer
+        style: form
+      - description: Page size
+        explode: true
+        in: query
+        name: size
+        required: false
+        schema:
+          default: 20
+          maximum: 100
+          minimum: 1
+          type: integer
+        style: form
+      - description: "Sort criteria (field,direction)"
+        explode: true
+        in: query
+        name: sort
+        required: false
+        schema:
+          items:
+            pattern: "^[a-zA-Z][a-zA-Z0-9]*,(asc|desc)$"
+            type: string
+          type: array
+        style: form
+      - description: Filter by event ID
+        explode: true
+        in: query
+        name: eventId
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Filter by user ID
+        explode: true
+        in: query
+        name: userId
+        required: false
+        schema:
+          format: uuid
+          type: string
+        style: form
+      - description: Filter by registration status
+        explode: true
+        in: query
+        name: status
+        required: false
+        schema:
+          items:
+            $ref: '#/components/schemas/RegistrationStatus'
+          type: array
+        style: form
+      - description: Filter registrations created after this date
+        explode: true
+        in: query
+        name: registeredAfter
+        required: false
+        schema:
+          format: date-time
+          type: string
+        style: form
+      - description: Filter registrations created before this date
+        explode: true
+        in: query
+        name: registeredBefore
+        required: false
+        schema:
+          format: date-time
+          type: string
+        style: form
+      - description: Filter by payment status
+        explode: true
+        in: query
+        name: paymentStatus
+        required: false
+        schema:
+          $ref: '#/components/schemas/PaymentStatus'
+        style: form
+      - description: Include check-in records in response
+        explode: true
+        in: query
+        name: includeCheckIns
+        required: false
+        schema:
+          default: false
+          type: boolean
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationPage'
+          description: List of registrations
+      summary: List registrations with advanced filtering
+      tags:
+      - Registrations
+      x-accepts: application/json
+      x-tags:
+      - tag: Registrations
+    post:
+      description: "Creates a new registration for a user to an event. Supports complex\
+        \ \nregistration workflows with custom fields and multi-tier ticketing.\n"
+      requestBody:
+        content:
+          application/json:
+            examples:
+              simple_registration:
+                summary: Simple free event registration
+                value:
+                  userId: 123e4567-e89b-12d3-a456-426614174000
+                  eventId: 507f1f77bcf86cd799439011
+                  selectedTicketTierIds:
+                  - free-tier
+                  registrationData:
+                    dietaryRestrictions: Vegetarian
+                    emergencyContact: +1-555-0123
+              complex_registration:
+                summary: Paid event with multiple tickets
+                value:
+                  userId: 123e4567-e89b-12d3-a456-426614174000
+                  eventId: 507f1f77bcf86cd799439011
+                  selectedTicketTierIds:
+                  - early-bird
+                  - workshop-addon
+                  registrationData:
+                    company: Tech Corp
+                    jobTitle: Software Engineer
+                    tshirtSize: M
+                    sessions:
+                    - keynote-1
+                    - workshop-a
+                  paymentMethod: CREDIT_CARD
+            schema:
+              $ref: '#/components/schemas/CreateRegistrationRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Registration'
+          description: Registration created successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid request parameters or body
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
+          description: "Registration conflict (user already registered, tickets sold\
+            \ out)"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+          description: Validation failed for request data
+      summary: Create a new event registration
+      tags:
+      - Registrations
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: Registrations
+  /registrations/{registrationId}:
+    delete:
+      description: "Cancel a registration. This may trigger refund processing depending\
+        \ \non the event's cancellation policy.\n"
+      parameters:
+      - explode: false
+        in: path
+        name: registrationId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - description: Cancellation reason
+        explode: true
+        in: query
+        name: reason
+        required: false
+        schema:
+          maxLength: 500
+          type: string
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancellationResult'
+          description: Registration cancelled successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid request parameters or body
+        "409":
+          description: "Cannot cancel registration (e.g., event already started)"
+      summary: Cancel registration
+      tags:
+      - Registrations
+      x-accepts: application/json
+      x-tags:
+      - tag: Registrations
+    get:
+      parameters:
+      - explode: false
+        in: path
+        name: registrationId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - description: Include analytics data for this registration
+        explode: true
+        in: query
+        name: includeAnalytics
+        required: false
+        schema:
+          default: false
+          type: boolean
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationDetails'
+          description: Registration details
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Resource not found
+      summary: Get registration details
+      tags:
+      - Registrations
+      x-accepts: application/json
+      x-tags:
+      - tag: Registrations
+    patch:
+      description: |
+        Update registration details. Supports partial updates and status transitions.
+        Some fields may be immutable after certain status changes.
+      parameters:
+      - explode: false
+        in: path
+        name: registrationId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRegistrationRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Registration'
+          description: Registration updated successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid request parameters or body
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
+          description: Invalid status transition or concurrent modification
+      summary: Update registration
+      tags:
+      - Registrations
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: Registrations
+  /registrations/bulk:
+    post:
+      description: |
+        Perform bulk operations on multiple registrations such as status updates,
+        notifications, or check-ins.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkRegistrationRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkOperationResult'
+          description: Bulk operation completed
+        "207":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkOperationResult'
+          description: Multi-status response for partial success
+      summary: Bulk registration operations
+      tags:
+      - Registrations
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: Registrations
+  /registrations/{registrationId}/checkins:
+    get:
+      parameters:
+      - explode: false
+        in: path
+        name: registrationId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CheckInRecord'
+                type: array
+          description: Check-in history
+      summary: Get check-in history
+      tags:
+      - Check-ins
+      x-accepts: application/json
+      x-tags:
+      - tag: Check-ins
+    post:
+      description: |
+        Record attendee check-in using various methods (QR code, NFC, manual, etc.).
+        Supports multiple check-ins for multi-day events.
+      parameters:
+      - explode: false
+        in: path
+        name: registrationId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckInRecord'
+          description: Check-in recorded successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid request parameters or body
+        "409":
+          description: "Check-in conflict (already checked in, invalid status)"
+      summary: Record a check-in
+      tags:
+      - Check-ins
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: Check-ins
+  /payments:
+    get:
+      parameters:
+      - description: Page number (0-based)
+        explode: true
+        in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          type: integer
+        style: form
+      - description: Page size
+        explode: true
+        in: query
+        name: size
+        required: false
+        schema:
+          default: 20
+          maximum: 100
+          minimum: 1
+          type: integer
+        style: form
+      - explode: true
+        in: query
+        name: eventId
+        required: false
+        schema:
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: status
+        required: false
+        schema:
+          $ref: '#/components/schemas/PaymentStatus'
+        style: form
+      - explode: true
+        in: query
+        name: dateFrom
+        required: false
+        schema:
+          format: date-time
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: dateTo
+        required: false
+        schema:
+          format: date-time
+          type: string
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentPage'
+          description: List of payments
+      summary: List payments with filtering
+      tags:
+      - Payments
+      x-accepts: application/json
+      x-tags:
+      - tag: Payments
+  /payments/{paymentId}/refund:
+    post:
+      description: |
+        Process a refund for a payment. May be partial or full refund.
+      parameters:
+      - explode: false
+        in: path
+        name: paymentId
+        required: true
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundResult'
+          description: Refund processed successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid request parameters or body
+      summary: Process refund
+      tags:
+      - Payments
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: Payments
+  /analytics/events:
+    post:
+      description: |
+        Record an analytics event for tracking user behavior and conversion metrics.
+        Supports custom properties and automatic A/B test attribution.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyticsEventRequest'
+        required: true
+      responses:
+        "202":
+          description: Analytics event accepted for processing
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid request parameters or body
+      summary: Track analytics event
+      tags:
+      - Analytics
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: Analytics
+  /analytics/events/{eventId}/metrics:
+    get:
+      description: |
+        Retrieve comprehensive analytics metrics for an event including
+        registration funnel, conversion rates, and revenue data.
+      parameters:
+      - explode: false
+        in: path
+        name: eventId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - explode: true
+        in: query
+        name: dateFrom
+        required: true
+        schema:
+          format: date
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: dateTo
+        required: true
+        schema:
+          format: date
+          type: string
+        style: form
+      - description: Time granularity for metrics
+        explode: true
+        in: query
+        name: granularity
+        required: false
+        schema:
+          default: day
+          enum:
+          - hour
+          - day
+          - week
+          - month
+          type: string
+        style: form
+      - description: Specific metrics to include
+        explode: true
+        in: query
+        name: metrics
+        required: false
+        schema:
+          items:
+            enum:
+            - views
+            - registrations
+            - conversions
+            - revenue
+            - demographics
+            type: string
+          type: array
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventAnalyticsResponse'
+          description: Event analytics metrics
+      summary: Get event analytics metrics
+      tags:
+      - Analytics
+      x-accepts: application/json
+      x-tags:
+      - tag: Analytics
+  /analytics/realtime/{eventId}:
+    get:
+      description: |
+        Get real-time analytics data for an ongoing event including
+        current check-ins, session attendance, and live metrics.
+      parameters:
+      - explode: false
+        in: path
+        name: eventId
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RealTimeAnalytics'
+          description: Real-time analytics data
+      summary: Get real-time analytics
+      tags:
+      - Analytics
+      x-accepts: application/json
+      x-tags:
+      - tag: Analytics
+  /experiments:
+    get:
+      parameters:
+      - explode: true
+        in: query
+        name: eventId
+        required: false
+        schema:
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: active
+        required: false
+        schema:
+          default: true
+          type: boolean
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Experiment'
+                type: array
+          description: List of experiments
+      summary: List active experiments
+      tags:
+      - Experiments
+      x-accepts: application/json
+      x-tags:
+      - tag: Experiments
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExperimentRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Experiment'
+          description: Experiment created successfully
+      summary: Create new experiment
+      tags:
+      - Experiments
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: Experiments
+  /experiments/{experimentId}/participate:
+    post:
+      parameters:
+      - explode: false
+        in: path
+        name: experimentId
+        required: true
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExperimentParticipationRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentParticipationResponse'
+          description: "Participation recorded, variant assigned"
+      summary: Record experiment participation
+      tags:
+      - Experiments
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: Experiments
+  /experiments/{experimentId}/convert:
+    post:
+      parameters:
+      - explode: false
+        in: path
+        name: experimentId
+        required: true
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversionRequest'
+        required: true
+      responses:
+        "200":
+          description: Conversion recorded successfully
+      summary: Record experiment conversion
+      tags:
+      - Experiments
+      x-content-type: application/json
+      x-accepts: application/json
+      x-tags:
+      - tag: Experiments
+  /reports/registration-summary:
+    get:
+      parameters:
+      - explode: true
+        in: query
+        name: eventId
+        required: true
+        schema:
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: format
+        required: false
+        schema:
+          default: json
+          enum:
+          - json
+          - csv
+          - pdf
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: includeDetails
+        required: false
+        schema:
+          default: false
+          type: boolean
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationSummaryReport'
+            text/csv:
+              schema:
+                type: string
+            application/pdf:
+              schema:
+                format: binary
+                type: string
+          description: Registration summary report
+      summary: Generate registration summary report
+      tags:
+      - Reports
+      x-accepts: application/json
+      x-tags:
+      - tag: Reports
+components:
+  parameters:
+    PageParam:
+      description: Page number (0-based)
+      explode: true
+      in: query
+      name: page
+      required: false
+      schema:
+        default: 0
+        minimum: 0
+        type: integer
+      style: form
+    SizeParam:
+      description: Page size
+      explode: true
+      in: query
+      name: size
+      required: false
+      schema:
+        default: 20
+        maximum: 100
+        minimum: 1
+        type: integer
+      style: form
+    SortParam:
+      description: "Sort criteria (field,direction)"
+      explode: true
+      in: query
+      name: sort
+      required: false
+      schema:
+        items:
+          pattern: "^[a-zA-Z][a-zA-Z0-9]*,(asc|desc)$"
+          type: string
+        type: array
+      style: form
+    RegistrationIdParam:
+      explode: false
+      in: path
+      name: registrationId
+      required: true
+      schema:
+        format: uuid
+        type: string
+      style: simple
+  responses:
+    BadRequest:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Invalid request parameters or body
+    ValidationError:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+      description: Validation failed for request data
+    NotFound:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Resource not found
+    Unauthorized:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Authentication required
+    Forbidden:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Insufficient permissions
+    TooManyRequests:
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/ErrorResponse'
+            - properties:
+                retryAfter:
+                  description: Seconds to wait before retrying
+                  type: integer
+              type: object
+      description: Rate limit exceeded
+    InternalServerError:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Internal server error
+  schemas:
+    Registration:
+      example:
+        eventId: eventId
+        registeredAt: 2000-01-23T04:56:07.000+00:00
+        userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        version: 0
+        selectedTicketTierIds:
+        - selectedTicketTierIds
+        - selectedTicketTierIds
+        totalAmount: 99.99
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        currency: USD
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        registrationData:
+          key: ""
+        checkIns:
+        - method: null
+          checkInTime: 2000-01-23T04:56:07.000+00:00
+          location: location
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          additionalData:
+            key: ""
+          deviceId: deviceId
+        - method: null
+          checkInTime: 2000-01-23T04:56:07.000+00:00
+          location: location
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          additionalData:
+            key: ""
+          deviceId: deviceId
+        paymentInfo:
+          amount: 99.99
+          method: null
+          paymentId: paymentId
+          processedAt: 2000-01-23T04:56:07.000+00:00
+          paymentMetadata:
+            key: ""
+          currency: currency
+          transactionId: transactionId
+          status: null
+        notifications:
+        - metadata:
+            key: ""
+          subject: subject
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          sentAt: 2000-01-23T04:56:07.000+00:00
+          type: EMAIL
+          content: content
+          status: PENDING
+        - metadata:
+            key: ""
+          subject: subject
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          sentAt: 2000-01-23T04:56:07.000+00:00
+          type: EMAIL
+          content: content
+          status: PENDING
+        status: null
+        updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        id:
+          description: Unique registration identifier
+          format: uuid
+          type: string
+        userId:
+          description: Reference to user from User Management Service
+          format: uuid
+          type: string
+        eventId:
+          description: Reference to event from Event Management Service
+          type: string
+        status:
+          $ref: '#/components/schemas/RegistrationStatus'
+        paymentInfo:
+          $ref: '#/components/schemas/PaymentInfo'
+        registeredAt:
+          format: date-time
+          type: string
+        registrationData:
+          additionalProperties: true
+          description: Custom form responses and additional data
+          type: object
+        selectedTicketTierIds:
+          items:
+            type: string
+          type: array
+        totalAmount:
+          example: 99.99
+          format: double
+          minimum: 0
+          type: number
+        currency:
+          example: USD
+          pattern: "^[A-Z]{3}$"
+          type: string
+        checkIns:
+          items:
+            $ref: '#/components/schemas/CheckInRecord'
+          type: array
+        notifications:
+          items:
+            $ref: '#/components/schemas/NotificationRecord'
+          type: array
+        createdAt:
+          format: date-time
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        version:
+          description: Version for optimistic locking
+          type: integer
+      required:
+      - currency
+      - eventId
+      - id
+      - registeredAt
+      - status
+      - totalAmount
+      - userId
+      type: object
+    RegistrationStatus:
+      description: Current status of the registration
+      enum:
+      - PENDING
+      - CONFIRMED
+      - CHECKED_IN
+      - CANCELLED
+      - REFUNDED
+      type: string
+    CreateRegistrationRequest:
+      example:
+        selectedTicketTierIds:
+        - selectedTicketTierIds
+        - selectedTicketTierIds
+        eventId: eventId
+        referralSource: referralSource
+        paymentMethod: null
+        promoCode: promoCode
+        registrationData:
+          key: ""
+        userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+      properties:
+        userId:
+          format: uuid
+          type: string
+        eventId:
+          type: string
+        selectedTicketTierIds:
+          items:
+            type: string
+          minItems: 1
+          type: array
+        registrationData:
+          additionalProperties: true
+          type: object
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        promoCode:
+          type: string
+        referralSource:
+          type: string
+      required:
+      - eventId
+      - selectedTicketTierIds
+      - userId
+      type: object
+    UpdateRegistrationRequest:
+      example:
+        selectedTicketTierIds:
+        - selectedTicketTierIds
+        - selectedTicketTierIds
+        registrationData:
+          key: ""
+        status: null
+      properties:
+        status:
+          $ref: '#/components/schemas/RegistrationStatus'
+        registrationData:
+          additionalProperties: true
+          type: object
+        selectedTicketTierIds:
+          items:
+            type: string
+          type: array
+      type: object
+    RegistrationDetails:
+      allOf:
+      - $ref: '#/components/schemas/Registration'
+      - properties:
+          analyticsData:
+            $ref: '#/components/schemas/RegistrationAnalytics'
+          eventDetails:
+            description: Cached event information
+            type: object
+          userDetails:
+            description: Cached user information
+            type: object
+        type: object
+    PaymentInfo:
+      example:
+        amount: 99.99
+        method: null
+        paymentId: paymentId
+        processedAt: 2000-01-23T04:56:07.000+00:00
+        paymentMetadata:
+          key: ""
+        currency: currency
+        transactionId: transactionId
+        status: null
+      properties:
+        paymentId:
+          type: string
+        method:
+          $ref: '#/components/schemas/PaymentMethod'
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        transactionId:
+          type: string
+        amount:
+          example: 99.99
+          format: double
+          type: number
+        currency:
+          pattern: "^[A-Z]{3}$"
+          type: string
+        processedAt:
+          format: date-time
+          type: string
+        paymentMetadata:
+          additionalProperties: true
+          type: object
+      required:
+      - amount
+      - currency
+      - method
+      - paymentId
+      - status
+      type: object
+    PaymentMethod:
+      enum:
+      - CREDIT_CARD
+      - PAYPAL
+      - BANK_TRANSFER
+      - FREE
+      - CRYPTO
+      - VOUCHER
+      type: string
+    PaymentStatus:
+      enum:
+      - PENDING
+      - PROCESSING
+      - COMPLETED
+      - FAILED
+      - CANCELLED
+      - REFUNDED
+      - PARTIALLY_REFUNDED
+      type: string
+    RefundRequest:
+      example:
+        reason: reason
+        amount: 50.0
+        refundMethod: ORIGINAL_METHOD
+      properties:
+        amount:
+          example: 50.0
+          format: double
+          minimum: 0
+          type: number
+        reason:
+          maxLength: 500
+          type: string
+        refundMethod:
+          default: ORIGINAL_METHOD
+          enum:
+          - ORIGINAL_METHOD
+          - STORE_CREDIT
+          - MANUAL
+          type: string
+      required:
+      - amount
+      - reason
+      type: object
+    RefundResult:
+      example:
+        amount: 50.0
+        processedAt: 2000-01-23T04:56:07.000+00:00
+        estimatedArrival: 2000-01-23T04:56:07.000+00:00
+        refundId: refundId
+        status: PENDING
+      properties:
+        refundId:
+          type: string
+        status:
+          enum:
+          - PENDING
+          - COMPLETED
+          - FAILED
+          type: string
+        amount:
+          example: 50.0
+          format: double
+          type: number
+        processedAt:
+          format: date-time
+          type: string
+        estimatedArrival:
+          format: date-time
+          type: string
+      type: object
+    CheckInRecord:
+      example:
+        method: null
+        checkInTime: 2000-01-23T04:56:07.000+00:00
+        location: location
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        additionalData:
+          key: ""
+        deviceId: deviceId
+      properties:
+        id:
+          format: uuid
+          type: string
+        checkInTime:
+          format: date-time
+          type: string
+        method:
+          $ref: '#/components/schemas/CheckInMethod'
+        location:
+          type: string
+        deviceId:
+          type: string
+        additionalData:
+          additionalProperties: true
+          type: object
+      required:
+      - checkInTime
+      - id
+      - location
+      - method
+      type: object
+    CheckInMethod:
+      enum:
+      - QR_CODE
+      - NFC
+      - MANUAL
+      - FACIAL_RECOGNITION
+      - RFID
+      - MOBILE_APP
+      type: string
+    CheckInRequest:
+      example:
+        verificationData:
+          key: ""
+        method: null
+        location: location
+        additionalData:
+          key: ""
+        deviceId: deviceId
+      properties:
+        method:
+          $ref: '#/components/schemas/CheckInMethod'
+        location:
+          type: string
+        deviceId:
+          type: string
+        verificationData:
+          additionalProperties: true
+          description: "QR code data, NFC tag info, etc."
+          type: object
+        additionalData:
+          additionalProperties: true
+          type: object
+      required:
+      - location
+      - method
+      type: object
+    AnalyticsEventRequest:
+      example:
+        eventId: eventId
+        ipAddress: ipAddress
+        userAgent: userAgent
+        location:
+          latitude: 40.7128
+          longitude: -74.006
+        eventType: null
+        sessionId: sessionId
+        userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        properties:
+          key: ""
+        timestamp: 2000-01-23T04:56:07.000+00:00
+      properties:
+        eventId:
+          type: string
+        eventType:
+          $ref: '#/components/schemas/AnalyticsEventType'
+        timestamp:
+          format: date-time
+          type: string
+        userId:
+          format: uuid
+          type: string
+        sessionId:
+          type: string
+        properties:
+          additionalProperties: true
+          type: object
+        userAgent:
+          type: string
+        ipAddress:
+          format: ipv4
+          type: string
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+      required:
+      - eventType
+      - timestamp
+      type: object
+    AnalyticsEventType:
+      enum:
+      - PAGE_VIEW
+      - REGISTRATION_START
+      - REGISTRATION_COMPLETE
+      - CHECK_IN
+      - SESSION_ATTENDANCE
+      - FEEDBACK_SUBMITTED
+      - PAYMENT_INITIATED
+      - PAYMENT_COMPLETED
+      - EMAIL_OPENED
+      - EMAIL_CLICKED
+      type: string
+    EventAnalyticsResponse:
+      example:
+        eventId: eventId
+        timeSeries:
+        - metadata:
+            key: ""
+          value: 2.3021358869347655
+          timestamp: 2000-01-23T04:56:07.000+00:00
+        - metadata:
+            key: ""
+          value: 2.3021358869347655
+          timestamp: 2000-01-23T04:56:07.000+00:00
+        period:
+          endDate: 2000-01-23
+          startDate: 2000-01-23
+        metrics:
+          registrationCompleted: 5
+          averageOrderValue: 125.5
+          totalViews: 0
+          totalRevenue: 15000.0
+          registrationStarted: 1
+          conversionRate: 0.25
+          uniqueVisitors: 6
+          trafficSources:
+            key: 5
+          customMetrics:
+            key: ""
+        conversionFunnel:
+          stages:
+          - name: name
+            count: 7
+            dropOffRate: 0.25
+            conversionRate: 0.75
+          - name: name
+            count: 7
+            dropOffRate: 0.25
+            conversionRate: 0.75
+        demographics:
+          genderDistribution:
+            key: 9
+          locationDistribution:
+            key: 3
+          registrationSources:
+            key: 4
+          ageGroups:
+            key: 7
+          industryDistribution:
+            key: 2
+      properties:
+        eventId:
+          type: string
+        period:
+          $ref: '#/components/schemas/DatePeriod'
+        metrics:
+          $ref: '#/components/schemas/EventMetrics'
+        timeSeries:
+          items:
+            $ref: '#/components/schemas/TimeSeriesDataPoint'
+          type: array
+        demographics:
+          $ref: '#/components/schemas/DemographicsData'
+        conversionFunnel:
+          $ref: '#/components/schemas/ConversionFunnel'
+      type: object
+    EventMetrics:
+      example:
+        registrationCompleted: 5
+        averageOrderValue: 125.5
+        totalViews: 0
+        totalRevenue: 15000.0
+        registrationStarted: 1
+        conversionRate: 0.25
+        uniqueVisitors: 6
+        trafficSources:
+          key: 5
+        customMetrics:
+          key: ""
+      properties:
+        totalViews:
+          type: integer
+        uniqueVisitors:
+          type: integer
+        registrationStarted:
+          type: integer
+        registrationCompleted:
+          type: integer
+        conversionRate:
+          example: 0.25
+          format: double
+          type: number
+        totalRevenue:
+          example: 15000.0
+          format: double
+          type: number
+        averageOrderValue:
+          example: 125.5
+          format: double
+          type: number
+        trafficSources:
+          additionalProperties:
+            type: integer
+          type: object
+        customMetrics:
+          additionalProperties: true
+          type: object
+      type: object
+    RealTimeAnalytics:
+      example:
+        eventId: eventId
+        currentAttendees: 0
+        totalCheckIns: 6
+        liveMetrics:
+          checkInsLastHour: 5
+          averageSessionDuration: 5.637376656633329
+          registrationsLastHour: 1
+        timestamp: 2000-01-23T04:56:07.000+00:00
+        sessionAttendance:
+        - attendeeCount: 2
+          sessionId: sessionId
+          capacity: 7
+        - attendeeCount: 2
+          sessionId: sessionId
+          capacity: 7
+      properties:
+        eventId:
+          type: string
+        timestamp:
+          format: date-time
+          type: string
+        currentAttendees:
+          type: integer
+        totalCheckIns:
+          type: integer
+        liveMetrics:
+          $ref: '#/components/schemas/RealTimeAnalytics_liveMetrics'
+        sessionAttendance:
+          items:
+            $ref: '#/components/schemas/RealTimeAnalytics_sessionAttendance_inner'
+          type: array
+      type: object
+    Experiment:
+      example:
+        targetingRules:
+          key: ""
+        eventId: eventId
+        endDate: 2000-01-23T04:56:07.000+00:00
+        name: name
+        trafficAllocation: 0.8
+        description: description
+        id: id
+        variants:
+        - configuration:
+            key: ""
+          name: name
+          weight: 0.5
+          id: id
+        - configuration:
+            key: ""
+          name: name
+          weight: 0.5
+          id: id
+        startDate: 2000-01-23T04:56:07.000+00:00
+        status: DRAFT
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        eventId:
+          type: string
+        variants:
+          items:
+            $ref: '#/components/schemas/ExperimentVariant'
+          type: array
+        trafficAllocation:
+          example: 0.8
+          format: double
+          maximum: 1
+          minimum: 0
+          type: number
+        startDate:
+          format: date-time
+          type: string
+        endDate:
+          format: date-time
+          type: string
+        status:
+          enum:
+          - DRAFT
+          - ACTIVE
+          - PAUSED
+          - COMPLETED
+          type: string
+        targetingRules:
+          additionalProperties: true
+          type: object
+      required:
+      - id
+      - name
+      - startDate
+      - status
+      - variants
+      type: object
+    ExperimentVariant:
+      example:
+        configuration:
+          key: ""
+        name: name
+        weight: 0.5
+        id: id
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        weight:
+          example: 0.5
+          format: double
+          maximum: 1
+          minimum: 0
+          type: number
+        configuration:
+          additionalProperties: true
+          type: object
+      required:
+      - id
+      - name
+      - weight
+      type: object
+    CreateExperimentRequest:
+      example:
+        targetingRules:
+          key: ""
+        eventId: eventId
+        name: name
+        trafficAllocation: 0.8008281904610115
+        description: description
+        variants:
+        - configuration:
+            key: ""
+          name: name
+          weight: 0.5
+          id: id
+        - configuration:
+            key: ""
+          name: name
+          weight: 0.5
+          id: id
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        eventId:
+          type: string
+        variants:
+          items:
+            $ref: '#/components/schemas/ExperimentVariant'
+          type: array
+        trafficAllocation:
+          default: 1.0
+          format: double
+          type: number
+        targetingRules:
+          additionalProperties: true
+          type: object
+      required:
+      - name
+      - variants
+      type: object
+    ExperimentParticipationRequest:
+      example:
+        userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        userContext:
+          key: ""
+      properties:
+        userId:
+          format: uuid
+          type: string
+        userContext:
+          additionalProperties: true
+          type: object
+      required:
+      - userId
+      type: object
+    ExperimentParticipationResponse:
+      example:
+        configuration:
+          key: ""
+        variant: variant
+        participationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+      properties:
+        participationId:
+          format: uuid
+          type: string
+        variant:
+          type: string
+        configuration:
+          additionalProperties: true
+          type: object
+      type: object
+    ConversionRequest:
+      example:
+        conversionData:
+          key: ""
+        conversionType: conversionType
+        userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+      properties:
+        userId:
+          format: uuid
+          type: string
+        conversionType:
+          type: string
+        conversionData:
+          additionalProperties: true
+          type: object
+      required:
+      - conversionType
+      - userId
+      type: object
+    BulkRegistrationRequest:
+      example:
+        operationData:
+          key: ""
+        criteria:
+          eventId: eventId
+          registeredBefore: 2000-01-23T04:56:07.000+00:00
+          registrationIds:
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          registeredAfter: 2000-01-23T04:56:07.000+00:00
+          status: null
+        operation: UPDATE_STATUS
+      properties:
+        operation:
+          enum:
+          - UPDATE_STATUS
+          - SEND_NOTIFICATION
+          - BULK_CHECK_IN
+          - EXPORT
+          type: string
+        criteria:
+          $ref: '#/components/schemas/BulkRegistrationRequest_criteria'
+        operationData:
+          additionalProperties: true
+          description: Data specific to the operation being performed
+          type: object
+      required:
+      - criteria
+      - operation
+      type: object
+    BulkOperationResult:
+      example:
+        totalItems: 0
+        operationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        failedItems: 5
+        processedItems: 6
+        errors:
+        - itemId: itemId
+          details: details
+          error: error
+        - itemId: itemId
+          details: details
+          error: error
+        successfulItems: 1
+        status: COMPLETED
+      properties:
+        operationId:
+          format: uuid
+          type: string
+        totalItems:
+          type: integer
+        processedItems:
+          type: integer
+        successfulItems:
+          type: integer
+        failedItems:
+          type: integer
+        errors:
+          items:
+            $ref: '#/components/schemas/BulkOperationResult_errors_inner'
+          type: array
+        status:
+          enum:
+          - COMPLETED
+          - PARTIAL_SUCCESS
+          - FAILED
+          type: string
+      type: object
+    RegistrationSummaryReport:
+      example:
+        summary:
+          totalRegistrations: 0
+          confirmedRegistrations: 6
+          averageRegistrationValue: 125.5
+          checkedInAttendees: 1
+          totalRevenue: 25000.0
+        eventId: eventId
+        registrations:
+        - eventId: eventId
+          registeredAt: 2000-01-23T04:56:07.000+00:00
+          userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          version: 0
+          selectedTicketTierIds:
+          - selectedTicketTierIds
+          - selectedTicketTierIds
+          totalAmount: 99.99
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          currency: USD
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          registrationData:
+            key: ""
+          checkIns:
+          - method: null
+            checkInTime: 2000-01-23T04:56:07.000+00:00
+            location: location
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            additionalData:
+              key: ""
+            deviceId: deviceId
+          - method: null
+            checkInTime: 2000-01-23T04:56:07.000+00:00
+            location: location
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            additionalData:
+              key: ""
+            deviceId: deviceId
+          paymentInfo:
+            amount: 99.99
+            method: null
+            paymentId: paymentId
+            processedAt: 2000-01-23T04:56:07.000+00:00
+            paymentMetadata:
+              key: ""
+            currency: currency
+            transactionId: transactionId
+            status: null
+          notifications:
+          - metadata:
+              key: ""
+            subject: subject
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            sentAt: 2000-01-23T04:56:07.000+00:00
+            type: EMAIL
+            content: content
+            status: PENDING
+          - metadata:
+              key: ""
+            subject: subject
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            sentAt: 2000-01-23T04:56:07.000+00:00
+            type: EMAIL
+            content: content
+            status: PENDING
+          status: null
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+        - eventId: eventId
+          registeredAt: 2000-01-23T04:56:07.000+00:00
+          userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          version: 0
+          selectedTicketTierIds:
+          - selectedTicketTierIds
+          - selectedTicketTierIds
+          totalAmount: 99.99
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          currency: USD
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          registrationData:
+            key: ""
+          checkIns:
+          - method: null
+            checkInTime: 2000-01-23T04:56:07.000+00:00
+            location: location
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            additionalData:
+              key: ""
+            deviceId: deviceId
+          - method: null
+            checkInTime: 2000-01-23T04:56:07.000+00:00
+            location: location
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            additionalData:
+              key: ""
+            deviceId: deviceId
+          paymentInfo:
+            amount: 99.99
+            method: null
+            paymentId: paymentId
+            processedAt: 2000-01-23T04:56:07.000+00:00
+            paymentMetadata:
+              key: ""
+            currency: currency
+            transactionId: transactionId
+            status: null
+          notifications:
+          - metadata:
+              key: ""
+            subject: subject
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            sentAt: 2000-01-23T04:56:07.000+00:00
+            type: EMAIL
+            content: content
+            status: PENDING
+          - metadata:
+              key: ""
+            subject: subject
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            sentAt: 2000-01-23T04:56:07.000+00:00
+            type: EMAIL
+            content: content
+            status: PENDING
+          status: null
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+        generatedAt: 2000-01-23T04:56:07.000+00:00
+        paymentMethodBreakdown:
+          key: 5
+        dailyRegistrations:
+        - date: 2000-01-23
+          revenue: 1250.0
+          count: 2
+        - date: 2000-01-23
+          revenue: 1250.0
+          count: 2
+        statusBreakdown:
+          key: 5
+      properties:
+        eventId:
+          type: string
+        generatedAt:
+          format: date-time
+          type: string
+        summary:
+          $ref: '#/components/schemas/RegistrationSummaryReport_summary'
+        statusBreakdown:
+          additionalProperties:
+            type: integer
+          type: object
+        paymentMethodBreakdown:
+          additionalProperties:
+            type: integer
+          type: object
+        dailyRegistrations:
+          items:
+            $ref: '#/components/schemas/RegistrationSummaryReport_dailyRegistrations_inner'
+          type: array
+        registrations:
+          description: Detailed registration list (only if includeDetails=true)
+          items:
+            $ref: '#/components/schemas/Registration'
+          type: array
+      type: object
+    RegistrationPage:
+      allOf:
+      - $ref: '#/components/schemas/PageResponse'
+      - properties:
+          content:
+            items:
+              $ref: '#/components/schemas/Registration'
+            type: array
+        type: object
+    PaymentPage:
+      allOf:
+      - $ref: '#/components/schemas/PageResponse'
+      - properties:
+          content:
+            items:
+              $ref: '#/components/schemas/PaymentInfo'
+            type: array
+        type: object
+    PageResponse:
+      properties:
+        content:
+          items:
+            type: object
+          type: array
+        pageable:
+          $ref: '#/components/schemas/Pageable'
+        totalElements:
+          format: int64
+          type: integer
+        totalPages:
+          type: integer
+        last:
+          type: boolean
+        first:
+          type: boolean
+        numberOfElements:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+        sort:
+          $ref: '#/components/schemas/Sort'
+        empty:
+          type: boolean
+      required:
+      - content
+      - first
+      - last
+      - number
+      - numberOfElements
+      - pageable
+      - size
+      - totalElements
+      - totalPages
+      type: object
+    Pageable:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        sort:
+          $ref: '#/components/schemas/Sort'
+      type: object
+    Sort:
+      properties:
+        sorted:
+          type: boolean
+        unsorted:
+          type: boolean
+        empty:
+          type: boolean
+      type: object
+    NotificationRecord:
+      example:
+        metadata:
+          key: ""
+        subject: subject
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        sentAt: 2000-01-23T04:56:07.000+00:00
+        type: EMAIL
+        content: content
+        status: PENDING
+      properties:
+        id:
+          format: uuid
+          type: string
+        type:
+          enum:
+          - EMAIL
+          - SMS
+          - PUSH
+          - IN_APP
+          type: string
+        subject:
+          type: string
+        content:
+          type: string
+        sentAt:
+          format: date-time
+          type: string
+        status:
+          enum:
+          - PENDING
+          - SENT
+          - DELIVERED
+          - FAILED
+          - BOUNCED
+          type: string
+        metadata:
+          additionalProperties: true
+          type: object
+      required:
+      - id
+      - sentAt
+      - status
+      - type
+      type: object
+    RegistrationAnalytics:
+      properties:
+        registrationId:
+          format: uuid
+          type: string
+        viewCount:
+          type: integer
+        lastViewedAt:
+          format: date-time
+          type: string
+        referralSource:
+          type: string
+        deviceInfo:
+          $ref: '#/components/schemas/RegistrationAnalytics_deviceInfo'
+        timeToRegister:
+          description: Time from first view to registration in seconds
+          type: integer
+        experimentParticipations:
+          items:
+            $ref: '#/components/schemas/ExperimentParticipation'
+          type: array
+      type: object
+    ExperimentParticipation:
+      properties:
+        id:
+          format: uuid
+          type: string
+        userId:
+          format: uuid
+          type: string
+        experimentId:
+          type: string
+        variant:
+          type: string
+        startedAt:
+          format: date-time
+          type: string
+        convertedAt:
+          format: date-time
+          type: string
+        conversionData:
+          additionalProperties: true
+          type: object
+      required:
+      - experimentId
+      - id
+      - startedAt
+      - userId
+      - variant
+      type: object
+    CancellationResult:
+      example:
+        reason: reason
+        refundMethod: refundMethod
+        registrationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        cancellationFee: 5.0
+        estimatedRefundDate: 2000-01-23
+        status: CANCELLED
+        refundAmount: 99.99
+      properties:
+        registrationId:
+          format: uuid
+          type: string
+        status:
+          enum:
+          - CANCELLED
+          - REFUND_PENDING
+          - REFUND_PROCESSED
+          type: string
+        refundAmount:
+          example: 99.99
+          format: double
+          type: number
+        refundMethod:
+          type: string
+        estimatedRefundDate:
+          format: date
+          type: string
+        cancellationFee:
+          example: 5.0
+          format: double
+          type: number
+        reason:
+          type: string
+      type: object
+    ConflictError:
+      properties:
+        error:
+          enum:
+          - ALREADY_REGISTERED
+          - TICKETS_SOLD_OUT
+          - INVALID_STATUS_TRANSITION
+          - CONCURRENT_MODIFICATION
+          type: string
+        message:
+          type: string
+        details:
+          additionalProperties: true
+          type: object
+        suggestedActions:
+          items:
+            type: string
+          type: array
+      type: object
+    DatePeriod:
+      example:
+        endDate: 2000-01-23
+        startDate: 2000-01-23
+      properties:
+        startDate:
+          format: date
+          type: string
+        endDate:
+          format: date
+          type: string
+      required:
+      - endDate
+      - startDate
+      type: object
+    TimeSeriesDataPoint:
+      example:
+        metadata:
+          key: ""
+        value: 2.3021358869347655
+        timestamp: 2000-01-23T04:56:07.000+00:00
+      properties:
+        timestamp:
+          format: date-time
+          type: string
+        value:
+          format: double
+          type: number
+        metadata:
+          additionalProperties: true
+          type: object
+      required:
+      - timestamp
+      - value
+      type: object
+    DemographicsData:
+      example:
+        genderDistribution:
+          key: 9
+        locationDistribution:
+          key: 3
+        registrationSources:
+          key: 4
+        ageGroups:
+          key: 7
+        industryDistribution:
+          key: 2
+      properties:
+        ageGroups:
+          additionalProperties:
+            type: integer
+          type: object
+        genderDistribution:
+          additionalProperties:
+            type: integer
+          type: object
+        locationDistribution:
+          additionalProperties:
+            type: integer
+          type: object
+        industryDistribution:
+          additionalProperties:
+            type: integer
+          type: object
+        registrationSources:
+          additionalProperties:
+            type: integer
+          type: object
+      type: object
+    ConversionFunnel:
+      example:
+        stages:
+        - name: name
+          count: 7
+          dropOffRate: 0.25
+          conversionRate: 0.75
+        - name: name
+          count: 7
+          dropOffRate: 0.25
+          conversionRate: 0.75
+      properties:
+        stages:
+          items:
+            $ref: '#/components/schemas/ConversionFunnel_stages_inner'
+          type: array
+      type: object
+    GeoPoint:
+      example:
+        latitude: 40.7128
+        longitude: -74.006
+      properties:
+        latitude:
+          example: 40.7128
+          format: double
+          maximum: 90
+          minimum: -90
+          type: number
+        longitude:
+          example: -74.006
+          format: double
+          maximum: 180
+          minimum: -180
+          type: number
+      required:
+      - latitude
+      - longitude
+      type: object
+    ErrorResponse:
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          items:
+            type: string
+          type: array
+        timestamp:
+          format: date-time
+          type: string
+        path:
+          type: string
+        traceId:
+          type: string
+      required:
+      - error
+      - message
+      - path
+      - timestamp
+      type: object
+    ValidationError:
+      allOf:
+      - $ref: '#/components/schemas/ErrorResponse'
+      - properties:
+          fieldErrors:
+            items:
+              $ref: '#/components/schemas/ValidationError_allOf_fieldErrors'
+            type: array
+        type: object
+    RealTimeAnalytics_liveMetrics:
+      example:
+        checkInsLastHour: 5
+        averageSessionDuration: 5.637376656633329
+        registrationsLastHour: 1
+      properties:
+        registrationsLastHour:
+          type: integer
+        checkInsLastHour:
+          type: integer
+        averageSessionDuration:
+          format: double
+          type: number
+      type: object
+    RealTimeAnalytics_sessionAttendance_inner:
+      example:
+        attendeeCount: 2
+        sessionId: sessionId
+        capacity: 7
+      properties:
+        sessionId:
+          type: string
+        attendeeCount:
+          type: integer
+        capacity:
+          type: integer
+      type: object
+    BulkRegistrationRequest_criteria:
+      example:
+        eventId: eventId
+        registeredBefore: 2000-01-23T04:56:07.000+00:00
+        registrationIds:
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        registeredAfter: 2000-01-23T04:56:07.000+00:00
+        status: null
+      properties:
+        registrationIds:
+          items:
+            format: uuid
+            type: string
+          type: array
+        eventId:
+          type: string
+        status:
+          $ref: '#/components/schemas/RegistrationStatus'
+        registeredAfter:
+          format: date-time
+          type: string
+        registeredBefore:
+          format: date-time
+          type: string
+      type: object
+    BulkOperationResult_errors_inner:
+      example:
+        itemId: itemId
+        details: details
+        error: error
+      properties:
+        itemId:
+          type: string
+        error:
+          type: string
+        details:
+          type: string
+      type: object
+    RegistrationSummaryReport_summary:
+      example:
+        totalRegistrations: 0
+        confirmedRegistrations: 6
+        averageRegistrationValue: 125.5
+        checkedInAttendees: 1
+        totalRevenue: 25000.0
+      properties:
+        totalRegistrations:
+          type: integer
+        confirmedRegistrations:
+          type: integer
+        checkedInAttendees:
+          type: integer
+        totalRevenue:
+          example: 25000.0
+          format: double
+          type: number
+        averageRegistrationValue:
+          example: 125.5
+          format: double
+          type: number
+      type: object
+    RegistrationSummaryReport_dailyRegistrations_inner:
+      example:
+        date: 2000-01-23
+        revenue: 1250.0
+        count: 2
+      properties:
+        date:
+          format: date
+          type: string
+        count:
+          type: integer
+        revenue:
+          example: 1250.0
+          format: double
+          type: number
+      type: object
+    RegistrationAnalytics_deviceInfo:
+      properties:
+        deviceType:
+          enum:
+          - DESKTOP
+          - MOBILE
+          - TABLET
+          type: string
+        browser:
+          type: string
+        operatingSystem:
+          type: string
+      type: object
+    ConversionFunnel_stages_inner:
+      example:
+        name: name
+        count: 7
+        dropOffRate: 0.25
+        conversionRate: 0.75
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+        conversionRate:
+          example: 0.75
+          format: double
+          type: number
+        dropOffRate:
+          example: 0.25
+          format: double
+          type: number
+      type: object
+    ValidationError_allOf_fieldErrors:
+      properties:
+        field:
+          type: string
+        rejectedValue:
+          type: string
+        message:
+          type: string
+      type: object
+  securitySchemes:
+    BearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
+    ApiKeyAuth:
+      in: header
+      name: X-API-Key
+      type: apiKey
