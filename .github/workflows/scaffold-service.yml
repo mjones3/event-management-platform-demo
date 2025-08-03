@@ -596,87 +596,56 @@ jobs:
             # Create a backup
             cp pom.xml pom.xml.backup
             
-            # Add additional dependencies before </dependencies>
-            cat > additional-deps.xml << 'EOF'
-		<!-- Additional Spring Boot Dependencies -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-jpa</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-actuator</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-validation</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.postgresql</groupId>
-			<artifactId>postgresql</artifactId>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>io.micrometer</groupId>
-			<artifactId>micrometer-registry-prometheus</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
-		</dependency>
-          EOF
-          
             # Insert additional dependencies
             sed -i '/<\/dependencies>/i\
-		<!-- Additional Spring Boot Dependencies -->\
-		<dependency>\
-			<groupId>org.springframework.boot</groupId>\
-			<artifactId>spring-boot-starter-data-jpa</artifactId>\
-		</dependency>\
-		<dependency>\
-			<groupId>org.springframework.boot</groupId>\
-			<artifactId>spring-boot-starter-actuator</artifactId>\
-		</dependency>\
-		<dependency>\
-			<groupId>org.springframework.boot</groupId>\
-			<artifactId>spring-boot-starter-validation</artifactId>\
-		</dependency>\
-		<dependency>\
-			<groupId>org.postgresql</groupId>\
-			<artifactId>postgresql</artifactId>\
-			<scope>runtime</scope>\
-		</dependency>\
-		<dependency>\
-			<groupId>io.micrometer</groupId>\
-			<artifactId>micrometer-registry-prometheus</artifactId>\
-		</dependency>\
-		<dependency>\
-			<groupId>org.springframework.boot</groupId>\
-			<artifactId>spring-boot-starter-test</artifactId>\
-			<scope>test</scope>\
-		</dependency>' pom.xml
+          		<!-- Additional Spring Boot Dependencies -->\
+          		<dependency>\
+          			<groupId>org.springframework.boot</groupId>\
+          			<artifactId>spring-boot-starter-data-jpa</artifactId>\
+          		</dependency>\
+          		<dependency>\
+          			<groupId>org.springframework.boot</groupId>\
+          			<artifactId>spring-boot-starter-actuator</artifactId>\
+          		</dependency>\
+          		<dependency>\
+          			<groupId>org.springframework.boot</groupId>\
+          			<artifactId>spring-boot-starter-validation</artifactId>\
+          		</dependency>\
+          		<dependency>\
+          			<groupId>org.postgresql</groupId>\
+          			<artifactId>postgresql</artifactId>\
+          			<scope>runtime</scope>\
+          		</dependency>\
+          		<dependency>\
+          			<groupId>io.micrometer</groupId>\
+          			<artifactId>micrometer-registry-prometheus</artifactId>\
+          		</dependency>\
+          		<dependency>\
+          			<groupId>org.springframework.boot</groupId>\
+          			<artifactId>spring-boot-starter-test</artifactId>\
+          			<scope>test</scope>\
+          		</dependency>' pom.xml
           
             # Ensure Spring Boot Maven plugin is properly configured
             if ! grep -q "spring-boot-maven-plugin" pom.xml; then
               echo "Adding Spring Boot Maven plugin..."
               sed -i '/<\/project>/i\
-	<build>\
-		<plugins>\
-			<plugin>\
-				<groupId>org.springframework.boot</groupId>\
-				<artifactId>spring-boot-maven-plugin</artifactId>\
-				<configuration>\
-					<excludes>\
-						<exclude>\
-							<groupId>org.projectlombok</groupId>\
-							<artifactId>lombok</artifactId>\
-						</exclude>\
-					</excludes>\
-				</configuration>\
-			</plugin>\
-		</plugins>\
-	</build>' pom.xml
+          	<build>\
+          		<plugins>\
+          			<plugin>\
+          				<groupId>org.springframework.boot</groupId>\
+          				<artifactId>spring-boot-maven-plugin</artifactId>\
+          				<configuration>\
+          					<excludes>\
+          						<exclude>\
+          							<groupId>org.projectlombok</groupId>\
+          							<artifactId>lombok</artifactId>\
+          						</exclude>\
+          					</excludes>\
+          				</configuration>\
+          			</plugin>\
+          		</plugins>\
+          	</build>' pom.xml
             fi
           fi
           
@@ -733,21 +702,21 @@ jobs:
           
           # Create application.yml with proper configuration
           mkdir -p src/main/resources
-          cat > src/main/resources/application.yml << EOF
+          cat > src/main/resources/application.yml << 'EOF'
           server:
-            port: \${PORT:8080}
+            port: ${PORT:8080}
           
           spring:
             application:
-              name: $SERVICE_NAME
+              name: SERVICE_NAME_PLACEHOLDER
             datasource:
-              url: jdbc:postgresql://\${DB_HOST:localhost}:\${DB_PORT:5432}/\${DB_NAME:${SERVICE_NAME//-/_}_db}
-              username: \${DB_USERNAME:postgres}
-              password: \${DB_PASSWORD:password}
+              url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:SERVICE_NAME_DB_PLACEHOLDER}
+              username: ${DB_USERNAME:postgres}
+              password: ${DB_PASSWORD:password}
             jpa:
               hibernate:
-                ddl-auto: \${JPA_DDL_AUTO:create-drop}
-              show-sql: \${JPA_SHOW_SQL:false}
+                ddl-auto: ${JPA_DDL_AUTO:create-drop}
+              show-sql: ${JPA_SHOW_SQL:false}
               properties:
                 hibernate:
                   format_sql: true
@@ -768,9 +737,9 @@ jobs:
           
           logging:
             level:
-              com.eventplatform: \${LOG_LEVEL:INFO}
-              org.springframework.web: \${WEB_LOG_LEVEL:WARN}
-              org.hibernate.SQL: \${SQL_LOG_LEVEL:WARN}
+              com.eventplatform: ${LOG_LEVEL:INFO}
+              org.springframework.web: ${WEB_LOG_LEVEL:WARN}
+              org.hibernate.SQL: ${SQL_LOG_LEVEL:WARN}
           
           springdoc:
             api-docs:
@@ -779,6 +748,10 @@ jobs:
               path: /swagger-ui.html
               operations-sorter: method
           EOF
+          
+          # Replace placeholders in application.yml
+          sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" src/main/resources/application.yml
+          sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" src/main/resources/application.yml
           
           # Create application.properties as fallback
           cat > src/main/resources/application.properties << EOF
@@ -864,39 +837,22 @@ jobs:
           EOF
           
           # Create docker-compose.yml with working setup
-          cat > docker-compose.yml << EOF
+          cat > docker-compose.yml << 'EOF'
           version: '3.8'
           services:
-            ${SERVICE_NAME}:
+            SERVICE_NAME_PLACEHOLDER:
               build: .
               ports:
-                - "\${SERVICE_PORT:-8080}:8080"
+                - "${SERVICE_PORT:-8080}:8080"
               environment:
                 - SPRING_PROFILES_ACTIVE=docker
                 - DB_HOST=postgres
                 - DB_USERNAME=postgres
                 - DB_PASSWORD=password
-                - DB_NAME=${SERVICE_NAME//-/_}_db
+                - DB_NAME=SERVICE_NAME_DB_PLACEHOLDER
               depends_on:
                 postgres:
                   condition: service_healthy
-              healthcheck:
-                test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-                interval: 30s
-                timeout: 10s
-                retries: 3
-                start_period: 40s
-            
-            postgres:
-              image: postgres:15-alpine
-              environment:
-                - POSTGRES_DB=${SERVICE_NAME//-/_}_db
-                - POSTGRES_USER=postgres
-                - POSTGRES_PASSWORD=password
-              ports:
-                - "\${DB_PORT:-5432}:5432"
-              volumes:
-                - postgres_data:/var/lib/postgresql/data
               healthcheck:
                 test: ["CMD-SHELL", "pg_isready -U postgres"]
                 interval: 10s
@@ -907,12 +863,16 @@ jobs:
             postgres_data:
           EOF
           
+          # Replace placeholders in docker-compose.yml
+          sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" docker-compose.yml
+          sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" docker-compose.yml
+          
           # Create a startup script
           cat > start.sh << 'EOF'
           #!/bin/bash
           set -e
           
-          echo "🚀 Starting $SERVICE_NAME..."
+          echo "🚀 Starting SERVICE_NAME_PLACEHOLDER..."
           
           # Check if Docker is available
           if command -v docker &> /dev/null; then
@@ -937,6 +897,8 @@ jobs:
           fi
           EOF
           
+          # Replace placeholder in start.sh
+          sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" start.sh
           chmod +x start.sh
           
           # Create a test script
@@ -946,7 +908,7 @@ jobs:
           
           SERVICE_URL="http://localhost:8080"
           
-          echo "🧪 Testing $SERVICE_NAME..."
+          echo "🧪 Testing SERVICE_NAME_PLACEHOLDER..."
           
           # Test root endpoint
           echo "Testing root endpoint..."
@@ -963,6 +925,8 @@ jobs:
           echo "✅ Service tests completed!"
           EOF
           
+          # Replace placeholder in test-service.sh
+          sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" test-service.sh
           chmod +x test-service.sh
           
           # Generate PostgreSQL database schema from OpenAPI spec
@@ -972,8 +936,19 @@ jobs:
           mkdir -p src/main/resources/db/migration
           mkdir -p database/scripts
           
+          # Install Python3 and PyYAML if not available
+          if ! command -v python3 &> /dev/null; then
+            echo "Installing Python3..."
+            sudo apt-get update && sudo apt-get install -y python3 python3-pip
+          fi
+          
+          if ! python3 -c "import yaml" 2>/dev/null; then
+            echo "Installing PyYAML..."
+            pip3 install PyYAML
+          fi
+          
           # Parse the OpenAPI spec to extract schemas and generate SQL
-          python3 << 'EOF'
+          python3 << 'PYTHON_EOF'
 import yaml
 import json
 import re
@@ -1016,7 +991,7 @@ def openapi_type_to_postgres(openapi_type, format_type=None, enum_values=None):
     
     if enum_values:
         enum_name = 'enum_type'
-        return f"VARCHAR(50) CHECK ({enum_name} IN ({', '.join([f\"'{v}'\" for v in enum_values])}))"
+        return f"VARCHAR(50) CHECK (VALUE IN ({', '.join([f\"'{v}'\" for v in enum_values])}))"
     
     return type_mapping.get(openapi_type, {}).get(format_type, type_mapping.get(openapi_type, {}).get(None, 'TEXT'))
 
@@ -1163,13 +1138,13 @@ try:
             # Add update trigger for updated_at
             sql_statements.append(f"-- Update trigger for {table_name}")
             sql_statements.append(f"""CREATE OR REPLACE FUNCTION update_{table_name}_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS $
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
     NEW.version = OLD.version + 1;
     RETURN NEW;
 END;
-$$ language 'plpgsql';""")
+$ language 'plpgsql';""")
             sql_statements.append("")
             
             sql_statements.append(f"DROP TRIGGER IF EXISTS trigger_update_{table_name}_updated_at ON {table_name};")
@@ -1210,7 +1185,9 @@ $$ language 'plpgsql';""")
 except Exception as e:
     print(f"⚠️  Could not generate database schema: {e}")
     # Create basic schema as fallback
-    basic_schema = f"""-- Basic schema for {SERVICE_NAME}
+    import os
+    service_name = os.environ.get('SERVICE_NAME', 'service')
+    basic_schema = f"""-- Basic schema for {service_name}
 -- Generated on: {datetime.now().isoformat()}
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -1233,13 +1210,13 @@ CREATE INDEX IF NOT EXISTS idx_entities_created_at ON entities(created_at);
 
 -- Update trigger
 CREATE OR REPLACE FUNCTION update_entities_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS $
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
     NEW.version = OLD.version + 1;
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$ language 'plpgsql';
 
 CREATE TRIGGER trigger_update_entities_updated_at
     BEFORE UPDATE ON entities
@@ -1253,171 +1230,170 @@ CREATE TRIGGER trigger_update_entities_updated_at
         f.write(basic_schema)
     
     print("✅ Generated basic database schema as fallback")
-
-EOF
+PYTHON_EOF
 
           # Add Flyway dependency to pom.xml for database migrations
           if [[ -f "pom.xml" ]]; then
             echo "📦 Adding Flyway for database migrations..."
             sed -i '/<\/dependencies>/i\
-		<dependency>\
-			<groupId>org.flywaydb</groupId>\
-			<artifactId>flyway-core</artifactId>\
-		</dependency>\
-		<dependency>\
-			<groupId>org.flywaydb</groupId>\
-			<artifactId>flyway-database-postgresql</artifactId>\
-		</dependency>' pom.xml
+          		<dependency>\
+          			<groupId>org.flywaydb</groupId>\
+          			<artifactId>flyway-core</artifactId>\
+          		</dependency>\
+          		<dependency>\
+          			<groupId>org.flywaydb</groupId>\
+          			<artifactId>flyway-database-postgresql</artifactId>\
+          		</dependency>' pom.xml
           fi
           
           # Create database initialization script
           cat > database/scripts/init-database.sh << 'EOF'
-#!/bin/bash
-set -e
-
-DB_NAME=${1:-"SERVICE_NAME_PLACEHOLDER_db"}
-DB_USER=${2:-"postgres"}
-DB_PASSWORD=${3:-"password"}
-DB_HOST=${4:-"localhost"}
-DB_PORT=${5:-"5432"}
-
-echo "🗄️  Initializing database: $DB_NAME"
-
-# Wait for PostgreSQL to be ready
-until PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -c '\q'; do
-  echo "⏳ Waiting for PostgreSQL..."
-  sleep 2
-done
-
-# Create database if it doesn't exist
-PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1 || \
-PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -c "CREATE DATABASE \"$DB_NAME\""
-
-# Run schema script
-echo "📋 Running schema migrations..."
-PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f 001_initial_schema.sql
-
-echo "✅ Database initialization completed!"
-EOF
-
+          #!/bin/bash
+          set -e
+          
+          DB_NAME=${1:-"SERVICE_NAME_DB_PLACEHOLDER"}
+          DB_USER=${2:-"postgres"}
+          DB_PASSWORD=${3:-"password"}
+          DB_HOST=${4:-"localhost"}
+          DB_PORT=${5:-"5432"}
+          
+          echo "🗄️  Initializing database: $DB_NAME"
+          
+          # Wait for PostgreSQL to be ready
+          until PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -c '\q'; do
+            echo "⏳ Waiting for PostgreSQL..."
+            sleep 2
+          done
+          
+          # Create database if it doesn't exist
+          PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1 || \
+          PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -c "CREATE DATABASE \"$DB_NAME\""
+          
+          # Run schema script
+          echo "📋 Running schema migrations..."
+          PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f 001_initial_schema.sql
+          
+          echo "✅ Database initialization completed!"
+          EOF
+          
           # Replace placeholder in init script
-          sed -i "s/SERVICE_NAME_PLACEHOLDER/${SERVICE_NAME//-/_}/g" database/scripts/init-database.sh
+          sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" database/scripts/init-database.sh
           chmod +x database/scripts/init-database.sh
           
           # Create sample data script
           cat > database/scripts/002_sample_data.sql << EOF
--- Sample data for $SERVICE_NAME
--- Generated on: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
--- Insert sample data here
--- Example:
--- INSERT INTO entities (name, description, status) VALUES 
---   ('Sample Entity 1', 'This is a sample entity for testing', 'ACTIVE'),
---   ('Sample Entity 2', 'Another sample entity', 'ACTIVE');
-
--- You can uncomment and modify the above lines to add sample data
-EOF
-
+          -- Sample data for $SERVICE_NAME
+          -- Generated on: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          -- Insert sample data here
+          -- Example:
+          -- INSERT INTO entities (name, description, status) VALUES 
+          --   ('Sample Entity 1', 'This is a sample entity for testing', 'ACTIVE'),
+          --   ('Sample Entity 2', 'Another sample entity', 'ACTIVE');
+          
+          -- You can uncomment and modify the above lines to add sample data
+          EOF
+          
           # Create database documentation
           cat > database/README.md << EOF
-# Database Schema for $SERVICE_NAME
-
-This directory contains the PostgreSQL database schema and related scripts for the $SERVICE_NAME.
-
-## 📁 Structure
-
-- \`scripts/\` - Database scripts and migrations
-  - \`001_initial_schema.sql\` - Initial database schema
-  - \`002_sample_data.sql\` - Sample data for development
-  - \`init-database.sh\` - Database initialization script
-- \`docs/\` - Database documentation
-
-## 🚀 Quick Start
-
-### Using Docker Compose (Recommended)
-The database is automatically set up when you run:
-\`\`\`bash
-docker-compose up -d
-\`\`\`
-
-### Manual Setup
-1. **Start PostgreSQL:**
-   \`\`\`bash
-   docker run -d --name postgres \\
-     -e POSTGRES_DB=${SERVICE_NAME//-/_}_db \\
-     -e POSTGRES_USER=postgres \\
-     -e POSTGRES_PASSWORD=password \\
-     -p 5432:5432 postgres:15
-   \`\`\`
-
-2. **Initialize the database:**
-   \`\`\`bash
-   cd database/scripts
-   ./init-database.sh
-   \`\`\`
-
-3. **Connect to the database:**
-   \`\`\`bash
-   psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db
-   \`\`\`
-
-## 📊 Schema Overview
-
-The database schema is automatically generated from the OpenAPI specification and includes:
-
-- **Proper data types** mapped from OpenAPI types
-- **Foreign key relationships** between entities
-- **Indexes** for performance optimization
-- **Audit fields** (created_at, updated_at, version)
-- **Update triggers** for automatic timestamp management
-- **Check constraints** for data validation
-
-## 🔄 Migrations
-
-This project uses Flyway for database migrations. Migration files are located in:
-- \`src/main/resources/db/migration/\`
-
-Migrations run automatically when the application starts.
-
-## 🛠️ Development
-
-### Adding New Tables
-1. Update the OpenAPI specification
-2. Re-run the scaffolding to regenerate the schema
-3. Create a new Flyway migration file
-
-### Sample Data
-- Edit \`002_sample_data.sql\` to add development data
-- Run: \`psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db -f 002_sample_data.sql\`
-
-## 📋 Connection Details
-
-- **Host:** localhost
-- **Port:** 5432
-- **Database:** ${SERVICE_NAME//-/_}_db
-- **Username:** postgres
-- **Password:** password
-
-## 🔍 Useful Commands
-
-\`\`\`bash
-# Connect to database
-psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db
-
-# List all tables
-\\dt
-
-# Describe a table
-\\d table_name
-
-# Show table relationships
-\\d+ table_name
-
-# Run a script
-\\i scripts/001_initial_schema.sql
-\`\`\`
-EOF
-
+          # Database Schema for $SERVICE_NAME
+          
+          This directory contains the PostgreSQL database schema and related scripts for the $SERVICE_NAME.
+          
+          ## 📁 Structure
+          
+          - \`scripts/\` - Database scripts and migrations
+            - \`001_initial_schema.sql\` - Initial database schema
+            - \`002_sample_data.sql\` - Sample data for development
+            - \`init-database.sh\` - Database initialization script
+          - \`docs/\` - Database documentation
+          
+          ## 🚀 Quick Start
+          
+          ### Using Docker Compose (Recommended)
+          The database is automatically set up when you run:
+          \`\`\`bash
+          docker-compose up -d
+          \`\`\`
+          
+          ### Manual Setup
+          1. **Start PostgreSQL:**
+             \`\`\`bash
+             docker run -d --name postgres \\
+               -e POSTGRES_DB=${SERVICE_NAME//-/_}_db \\
+               -e POSTGRES_USER=postgres \\
+               -e POSTGRES_PASSWORD=password \\
+               -p 5432:5432 postgres:15
+             \`\`\`
+          
+          2. **Initialize the database:**
+             \`\`\`bash
+             cd database/scripts
+             ./init-database.sh
+             \`\`\`
+          
+          3. **Connect to the database:**
+             \`\`\`bash
+             psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db
+             \`\`\`
+          
+          ## 📊 Schema Overview
+          
+          The database schema is automatically generated from the OpenAPI specification and includes:
+          
+          - **Proper data types** mapped from OpenAPI types
+          - **Foreign key relationships** between entities
+          - **Indexes** for performance optimization
+          - **Audit fields** (created_at, updated_at, version)
+          - **Update triggers** for automatic timestamp management
+          - **Check constraints** for data validation
+          
+          ## 🔄 Migrations
+          
+          This project uses Flyway for database migrations. Migration files are located in:
+          - \`src/main/resources/db/migration/\`
+          
+          Migrations run automatically when the application starts.
+          
+          ## 🛠️ Development
+          
+          ### Adding New Tables
+          1. Update the OpenAPI specification
+          2. Re-run the scaffolding to regenerate the schema
+          3. Create a new Flyway migration file
+          
+          ### Sample Data
+          - Edit \`002_sample_data.sql\` to add development data
+          - Run: \`psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db -f 002_sample_data.sql\`
+          
+          ## 📋 Connection Details
+          
+          - **Host:** localhost
+          - **Port:** 5432
+          - **Database:** ${SERVICE_NAME//-/_}_db
+          - **Username:** postgres
+          - **Password:** password
+          
+          ## 🔍 Useful Commands
+          
+          \`\`\`bash
+          # Connect to database
+          psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db
+          
+          # List all tables
+          \\dt
+          
+          # Describe a table
+          \\d table_name
+          
+          # Show table relationships
+          \\d+ table_name
+          
+          # Run a script
+          \\i scripts/001_initial_schema.sql
+          \`\`\`
+          EOF
+          
           echo "✅ Generated complete PostgreSQL database setup!"
           echo "📁 Database files created:"
           find database -type f | head -10
@@ -1432,7 +1408,7 @@ EOF
           baseUrl: https://api.getport.io
           operation: UPSERT
           identifier: ${{ inputs.service_name }}
-          title: "${{ inputs.service_name | title }} Service"
+          title: "${{ inputs.service_name }} Service"
           blueprint: "service"
           properties: |
             {
@@ -1467,7 +1443,7 @@ EOF
           
           # Create README for the services directory
           if [[ ! -f "services/README.md" ]]; then
-            cat > services/README.md << EOF
+            cat > services/README.md << 'EOF'
           # Microservices
           
           This directory contains all the scaffolded microservices for the Event Management Platform.
@@ -1583,14 +1559,6 @@ EOF
           echo "🌐 Repository: https://github.com/${{ github.repository }}"
           echo "📖 API Documentation: http://localhost:8080/swagger-ui.html (after running)"
 
-      - name: Simulate service creation
-        run: |
-          echo "Creating service: ${{ inputs.service_name }}"
-          echo "Description: ${{ inputs.description }}"
-          # Add your actual scaffolding logic here
-          sleep 5
-          echo "✅ Service scaffolding completed!"
-
       - name: Log completion to Port
         if: ${{ inputs.port_run_id != '' }}
         continue-on-error: true
@@ -1601,4 +1569,21 @@ EOF
           baseUrl: https://api.getport.io
           operation: PATCH_RUN
           runId: ${{ inputs.port_run_id }}
-          logMessage: "✅ Successfully scaffolded service: ${{ inputs.service_name }}"
+          logMessage: "✅ Successfully scaffolded service: ${{ inputs.service_name }}":
+                test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+                start_period: 40s
+            
+            postgres:
+              image: postgres:15-alpine
+              environment:
+                - POSTGRES_DB=SERVICE_NAME_DB_PLACEHOLDER
+                - POSTGRES_USER=postgres
+                - POSTGRES_PASSWORD=password
+              ports:
+                - "${DB_PORT:-5432}:5432"
+              volumes:
+                - postgres_data:/var/lib/postgresql/data
+              healthcheck
