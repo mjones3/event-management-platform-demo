@@ -3,7 +3,7 @@ name: Deploy OpenAPI Specs to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['api-specs/**']
+    paths: ["api-specs/**"]
   workflow_dispatch:
 
 permissions:
@@ -17,23 +17,23 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
-      
+          python-version: "3.9"
+
       - name: Install dependencies
         run: pip install PyYAML
-      
+
       - name: Convert YAML specs to JSON with CORS
         run: |
           mkdir -p docs/api-specs
-          
+
           # Create index.html with CORS headers
           cat > docs/index.html << 'EOF'
           <!DOCTYPE html>
@@ -52,6 +52,10 @@ jobs:
                   }
                   .spec-item a { text-decoration: none; color: #0066cc; }
                   .spec-item a:hover { text-decoration: underline; }
+                  .error-item {
+                      background: #ffe6e6;
+                      border-left: 4px solid #ff0000;
+                  }
                   .cors-note {
                       background: #e8f5e8;
                       padding: 15px;
@@ -70,31 +74,120 @@ jobs:
               <h2>Available API Specifications (JSON)</h2>
               <ul class="spec-list">
           EOF
-          
-          # Convert each YAML file to JSON
+
+          # Create robust conversion script
+          cat > convert_yaml.py << 'EOF'
+          import yaml
+          import json
+          import sys
+          import os
+          from pathlib import Path
+
+          def validate_and_convert_yaml(yaml_file, json_file):
+              """Convert YAML to JSON with error handling and validation"""
+              try:
+                  print(f"🔍 Validating {yaml_file}...")
+                  
+                  # First, try to load and validate the YAML
+                  with open(yaml_file, 'r', encoding='utf-8') as f:
+                      content = f.read()
+                  
+                  # Check for common YAML issues
+                  lines = content.split('\n')
+                  for i, line in enumerate(lines, 1):
+                      # Check for tabs (should be spaces in YAML)
+                      if '\t' in line:
+                          print(f"⚠️  Warning: Tab found on line {i}, converting to spaces")
+                          content = content.replace('\t', '  ')
+                      
+                      # Check for trailing spaces on empty lines
+                      if line.strip() == '' and len(line) > 0:
+                          print(f"⚠️  Warning: Trailing spaces on empty line {i}")
+                  
+                  # Parse the YAML
+                  try:
+                      data = yaml.safe_load(content)
+                  except yaml.YAMLError as e:
+                      print(f"❌ YAML parsing error in {yaml_file}:")
+                      print(f"   Error: {str(e)}")
+                      
+                      # Try to provide more specific error information
+                      if hasattr(e, 'problem_mark'):
+                          mark = e.problem_mark
+                          print(f"   Error at line {mark.line + 1}, column {mark.column + 1}")
+                          
+                          # Show the problematic line
+                          if mark.line < len(lines):
+                              print(f"   Problematic line: {lines[mark.line]}")
+                      
+                      return False, str(e)
+                  
+                  # Validate OpenAPI structure
+                  if not isinstance(data, dict):
+                      return False, "Root element must be an object"
+                  
+                  if 'openapi' not in data and 'swagger' not in data:
+                      print("⚠️  Warning: No 'openapi' or 'swagger' version field found")
+                  
+                  if 'info' not in data:
+                      print("⚠️  Warning: No 'info' section found")
+                  
+                  # Convert to JSON
+                  print(f"✅ Converting {yaml_file} to {json_file}")
+                  with open(json_file, 'w', encoding='utf-8') as f:
+                      json.dump(data, f, indent=2, ensure_ascii=False)
+                  
+                  return True, "Success"
+                  
+              except FileNotFoundError:
+                  return False, f"File not found: {yaml_file}"
+              except Exception as e:
+                  return False, f"Unexpected error: {str(e)}"
+
+          def main():
+              yaml_file = sys.argv[1]
+              json_file = sys.argv[2]
+              
+              success, message = validate_and_convert_yaml(yaml_file, json_file)
+              
+              if not success:
+                  print(f"❌ Failed to convert {yaml_file}: {message}")
+                  sys.exit(1)
+              else:
+                  print(f"✅ Successfully converted {yaml_file}")
+
+          if __name__ == "__main__":
+              main()
+          EOF
+
+          # Convert each YAML file to JSON with error handling
+          conversion_errors=()
           for yaml_file in api-specs/*.yaml; do
               if [ -f "$yaml_file" ]; then
                   base_name=$(basename "$yaml_file" .yaml)
                   json_file="docs/api-specs/${base_name}.json"
                   
-                  echo "Converting $yaml_file to $json_file"
-                  python3 -c "
-          import yaml, json, sys
-          with open('$yaml_file', 'r') as f:
-              data = yaml.safe_load(f)
-          with open('$json_file', 'w') as f:
-              json.dump(data, f, indent=2)
-          "
+                  echo "🔄 Processing $yaml_file..."
                   
-                  # Add to index
-                  echo "                  <li class=\"spec-item\">" >> docs/index.html
-                  echo "                      <strong>${base_name}</strong><br>" >> docs/index.html
-                  echo "                      <a href=\"./api-specs/${base_name}.json\">${base_name}.json</a>" >> docs/index.html
-                  echo "                      <br><small>Last updated: $(date)</small>" >> docs/index.html
-                  echo "                  </li>" >> docs/index.html
+                  if python3 convert_yaml.py "$yaml_file" "$json_file"; then
+                      # Success - add to index
+                      echo "                  <li class=\"spec-item\">" >> docs/index.html
+                      echo "                      <strong>${base_name}</strong><br>" >> docs/index.html
+                      echo "                      <a href=\"./api-specs/${base_name}.json\">${base_name}.json</a>" >> docs/index.html
+                      echo "                      <br><small>✅ Last updated: $(date)</small>" >> docs/index.html
+                      echo "                  </li>" >> docs/index.html
+                  else
+                      # Error - add error entry to index
+                      echo "                  <li class=\"spec-item error-item\">" >> docs/index.html
+                      echo "                      <strong>${base_name}</strong> ❌<br>" >> docs/index.html
+                      echo "                      <span style=\"color: #cc0000;\">YAML parsing failed</span>" >> docs/index.html
+                      echo "                      <br><small>❌ Failed: $(date)</small>" >> docs/index.html
+                      echo "                  </li>" >> docs/index.html
+                      conversion_errors+=("$yaml_file")
+                  fi
               fi
           done
-          
+
           # Close index.html
           cat >> docs/index.html << 'EOF'
               </ul>
@@ -105,10 +198,13 @@ jobs:
               
               <h3>Port.io Integration</h3>
               <p>Use these URLs in your Port.io service entity's <code>myOpenApi</code> property.</p>
+              
+              <h3>YAML Validation Errors</h3>
+              <p>If any specs show as failed, check the GitHub Actions logs for detailed error information.</p>
           </body>
           </html>
           EOF
-          
+
           # Create _headers file for Netlify-style CORS (GitHub Pages alternative)
           cat > docs/_headers << 'EOF'
           /api-specs/*
@@ -117,14 +213,31 @@ jobs:
             Access-Control-Allow-Headers: *
           EOF
 
+          # Report results
+          if [ ${#conversion_errors[@]} -eq 0 ]; then
+              echo "✅ All YAML files converted successfully!"
+          else
+              echo "⚠️  Some files had conversion errors:"
+              for error_file in "${conversion_errors[@]}"; do
+                  echo "   - $error_file"
+              done
+              echo ""
+              echo "🔍 To fix YAML errors:"
+              echo "1. Check the error messages above"
+              echo "2. Validate YAML syntax at https://yamllint.com/"
+              echo "3. Common issues: indentation, tabs instead of spaces, unescaped special characters"
+              echo ""
+              echo "📝 The deployment will continue with successfully converted files."
+          fi
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
-        
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './docs'
-          
+          path: "./docs"
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
