@@ -675,8 +675,9 @@ components:
             type: string
         totalAmount:
           type: number
-          format: decimal
+          format: double
           minimum: 0
+          example: 99.99
         currency:
           type: string
           pattern: '^[A-Z]{3}$'
@@ -783,7 +784,8 @@ components:
           type: string
         amount:
           type: number
-          format: decimal
+          format: double
+          example: 99.99
         currency:
           type: string
           pattern: '^[A-Z]{3}$'
@@ -823,8 +825,9 @@ components:
       properties:
         amount:
           type: number
-          format: decimal
+          format: double
           minimum: 0
+          example: 50.00
         reason:
           type: string
           maxLength: 500
@@ -843,7 +846,8 @@ components:
           enum: [PENDING, COMPLETED, FAILED]
         amount:
           type: number
-          format: decimal
+          format: double
+          example: 50.00
         processedAt:
           type: string
           format: date-time
@@ -982,12 +986,15 @@ components:
         conversionRate:
           type: number
           format: double
+          example: 0.25
         totalRevenue:
           type: number
-          format: decimal
+          format: double
+          example: 15000.00
         averageOrderValue:
           type: number
-          format: decimal
+          format: double
+          example: 125.50
         trafficSources:
           type: object
           additionalProperties:
@@ -1057,6 +1064,7 @@ components:
           format: double
           minimum: 0
           maximum: 1
+          example: 0.8
         startDate:
           type: string
           format: date-time
@@ -1086,6 +1094,7 @@ components:
           format: double
           minimum: 0
           maximum: 1
+          example: 0.5
         configuration:
           type: object
           additionalProperties: true
@@ -1235,10 +1244,12 @@ components:
               type: integer
             totalRevenue:
               type: number
-              format: decimal
+              format: double
+              example: 25000.00
             averageRegistrationValue:
               type: number
-              format: decimal
+              format: double
+              example: 125.50
         statusBreakdown:
           type: object
           additionalProperties:
@@ -1259,7 +1270,8 @@ components:
                 type: integer
               revenue:
                 type: number
-                format: decimal
+                format: double
+                example: 1250.00
         registrations:
           type: array
           items:
@@ -1446,7 +1458,8 @@ components:
           enum: [CANCELLED, REFUND_PENDING, REFUND_PROCESSED]
         refundAmount:
           type: number
-          format: decimal
+          format: double
+          example: 99.99
         refundMethod:
           type: string
         estimatedRefundDate:
@@ -1454,7 +1467,8 @@ components:
           format: date
         cancellationFee:
           type: number
-          format: decimal
+          format: double
+          example: 5.00
         reason:
           type: string
 
@@ -1498,6 +1512,7 @@ components:
           format: date-time
         value:
           type: number
+          format: double
         metadata:
           type: object
           additionalProperties: true
@@ -1541,9 +1556,11 @@ components:
               conversionRate:
                 type: number
                 format: double
+                example: 0.75
               dropOffRate:
                 type: number
                 format: double
+                example: 0.25
 
     GeoPoint:
       type: object
@@ -1556,11 +1573,13 @@ components:
           format: double
           minimum: -90
           maximum: 90
+          example: 40.7128
         longitude:
           type: number
           format: double
           minimum: -180
           maximum: 180
+          example: -74.0060
 
     # Error Response Schemas
     ErrorResponse:
