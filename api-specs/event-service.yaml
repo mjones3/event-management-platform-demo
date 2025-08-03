@@ -1277,16 +1277,7 @@ components:
           example: 99.99
         currency:
           type: string
-          pattern: '^[A-Z]{3} object
-      properties:
-        street:
-          type: string
-          example: "123 Convention Blvd"
-        city:
-          type: string
-          example: "New York"
-        state:
-          type:
+          pattern: '^[A-Z]{3}
           example: "USD"
         totalQuantity:
           type: integer
@@ -1334,16 +1325,7 @@ components:
           minimum: 0
         currency:
           type: string
-          pattern: '^[A-Z]{3} object
-      properties:
-        street:
-          type: string
-          example: "123 Convention Blvd"
-        city:
-          type: string
-          example: "New York"
-        state:
-          type:
+          pattern: '^[A-Z]{3}
           default: "USD"
         totalQuantity:
           type: integer
@@ -1378,16 +1360,7 @@ components:
           minimum: 0
         currency:
           type: string
-          pattern: '^[A-Z]{3} object
-      properties:
-        street:
-          type: string
-          example: "123 Convention Blvd"
-        city:
-          type: string
-          example: "New York"
-        state:
-          type:
+          pattern: '^[A-Z]{3}
         totalQuantity:
           type: integer
           minimum: 1
@@ -1420,16 +1393,7 @@ components:
           example: "2024-06-15T09:00:00Z"
         duration:
           type: string
-          pattern: '^PT\d+H\d*M? object
-      properties:
-        street:
-          type: string
-          example: "123 Convention Blvd"
-        city:
-          type: string
-          example: "New York"
-        state:
-          type:
+          pattern: '^PT\d+H\d*M?
           example: "PT1H30M"
         speakerIds:
           type: array
@@ -1470,16 +1434,7 @@ components:
           format: date-time
         duration:
           type: string
-          pattern: '^PT\d+H\d*M? object
-      properties:
-        street:
-          type: string
-          example: "123 Convention Blvd"
-        city:
-          type: string
-          example: "New York"
-        state:
-          type:
+          pattern: '^PT\d+H\d*M?
         speakerIds:
           type: array
           items:
@@ -1514,16 +1469,7 @@ components:
           format: date-time
         duration:
           type: string
-          pattern: '^PT\d+H\d*M? object
-      properties:
-        street:
-          type: string
-          example: "123 Convention Blvd"
-        city:
-          type: string
-          example: "New York"
-        state:
-          type:
+          pattern: '^PT\d+H\d*M?
         speakerIds:
           type: array
           items:
@@ -1998,16 +1944,6 @@ tags:
   - name: Analytics
     description: Event analytics and reporting
 
-
 externalDocs:
   description: Find more information about the Event Management Platform API
-  url: https://docs.eventplatform.com/api/events object
-      properties:
-        street:
-          type: string
-          example: "123 Convention Blvd"
-        city:
-          type: string
-          example: "New York"
-        state:
-          type:
+  url: https://docs.eventplatform.com/api/events
