@@ -116,227 +116,6 @@ jobs:
             exit 1
           fi
 
-      - name: Create service directory and commit to current repository
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          SERVICE_NAME="${{ inputs.service_name }}"
-
-          echo "📍 Current working directory: $(pwd)"
-          echo "📁 Available files/directories:"
-          ls -la
-
-          # Create services directory if it doesn't exist
-          mkdir -p services
-
-          # Check if the service directory exists
-          if [[ ! -d "$SERVICE_NAME" ]]; then
-            echo "❌ Service directory not found: $SERVICE_NAME"
-            echo "📁 Available directories:"
-            ls -la
-            echo "🔍 Looking for service directories:"
-            find . -maxdepth 2 -type d -name "*$SERVICE_NAME*" || echo "No matching directories found"
-            
-            # Since the directory should exist, let's see if the working-directory approach left files elsewhere
-            echo "🔍 Searching for pom.xml files (indicator of service location):"
-            find . -name "pom.xml" -type f 2>/dev/null || echo "No pom.xml files found"
-            echo "🔍 Searching for any service-related files:"
-            find . -name "*.java" -type f 2>/dev/null | head -5 || echo "No Java files found"
-            
-            exit 1
-          fi
-
-          # Check if services directory already contains the service
-          if [[ -d "services/$SERVICE_NAME" ]]; then
-            echo "⚠️  Service already exists in services directory, removing old version..."
-            rm -rf "services/$SERVICE_NAME"
-          fi
-
-          # Copy the service to services directory instead of moving (safer)
-          echo "📦 Copying $SERVICE_NAME to services/$SERVICE_NAME"
-          cp -r "$SERVICE_NAME" "services/$SERVICE_NAME"
-
-          # Verify the copy was successful
-          if [[ ! -d "services/$SERVICE_NAME" ]]; then
-            echo "❌ Failed to copy service directory"
-            echo "📁 Contents of services directory:"
-            ls -la services/
-            exit 1
-          fi
-
-          # Clean up the original directory
-          echo "🧹 Cleaning up original directory"
-          rm -rf "$SERVICE_NAME"
-
-          echo "✅ Service directory copied successfully"
-          echo "📁 Verifying services directory contents:"
-          ls -la "services/$SERVICE_NAME/" | head -10
-
-          # Verify key files exist
-          if [[ -f "services/$SERVICE_NAME/pom.xml" ]]; then
-            echo "✅ pom.xml found in services directory"
-          else
-            echo "❌ pom.xml missing from services directory"
-            exit 1
-          fi
-
-          # Create README for the services directory
-          if [[ ! -f "services/README.md" ]]; then
-            cat > services/README.md << 'EOF'
-          # Microservices
-
-          This directory contains all the scaffolded microservices for the Event Management Platform.
-
-          ## Services
-          EOF
-          fi
-
-          # Add service to the README
-          echo "- [\`$SERVICE_NAME\`](./services/$SERVICE_NAME) - ${{ inputs.description }}" >> services/README.md
-
-          # Create comprehensive README for the service
-          cd "services/$SERVICE_NAME"
-          cat > README.md << EOF
-          # $SERVICE_NAME
-
-          ${{ inputs.description }}
-
-          Generated Spring Boot microservice from OpenAPI specification.
-
-          ## Quick Start
-
-          1. **Navigate to service directory:**
-             \`\`\`bash
-             cd services/$SERVICE_NAME
-             \`\`\`
-
-          2. **Start with Docker Compose:**
-             \`\`\`bash
-             docker-compose up -d
-             \`\`\`
-
-          3. **Or run locally:**
-             \`\`\`bash
-             mvn spring-boot:run
-             \`\`\`
-
-          4. **Test the API:**
-             \`\`\`bash
-             curl http://localhost:8080/api/v1/health
-             \`\`\`
-
-          5. **View API Documentation:**
-             \`\`\`
-             http://localhost:8080/swagger-ui.html
-             \`\`\`
-
-          ## Generated Features
-
-          ✅ **RESTful API** - Complete CRUD operations  
-          ✅ **OpenAPI Documentation** - Interactive Swagger UI  
-          ✅ **Data Validation** - Bean validation with error handling  
-          ✅ **Pagination** - Built-in pagination support  
-          ✅ **Docker Support** - Ready for containerization  
-          ✅ **Database Integration** - PostgreSQL with JPA  
-          ✅ **Health Checks** - Actuator endpoints  
-
-          ## API Endpoints
-
-          | Method | Endpoint | Description |
-          |--------|----------|-------------|
-          | GET | \`/api/v1/health\` | Health check |
-          | GET | \`/api/v1/${SERVICE_NAME}s\` | List items with pagination |
-          | POST | \`/api/v1/${SERVICE_NAME}s\` | Create new item |
-          | GET | \`/api/v1/${SERVICE_NAME}s/{id}\` | Get item by ID |
-          | PUT | \`/api/v1/${SERVICE_NAME}s/{id}\` | Update item |
-          | DELETE | \`/api/v1/${SERVICE_NAME}s/{id}\` | Delete item |
-
-          ## Development
-
-          This service was generated using the Event Management Platform scaffolding system.
-
-          - **Generated by:** ${{ github.actor }}
-          - **Generated on:** $(date)
-          - **Template:** OpenAPI Generator with Spring Boot
-
-          ## Next Steps
-
-          1. **Implement Business Logic** - Add your service implementation
-          2. **Create JPA Entities** - Define your database entities  
-          3. **Add Tests** - Write unit and integration tests
-          4. **Configure Security** - Set up authentication
-          5. **Add Monitoring** - Configure metrics and logging
-          EOF
-
-          cd ../..
-
-          # Commit the changes
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
-          git add services/
-          git commit -m "🎉 Add $SERVICE_NAME microservice
-
-          Generated Spring Boot service with:
-          ✅ Complete RESTful API from OpenAPI spec
-          ✅ CRUD operations with validation
-          ✅ Pagination and filtering support  
-          ✅ Docker containerization
-          ✅ PostgreSQL database integration
-          ✅ Interactive API documentation
-          ✅ Health monitoring endpoints
-
-          Generated by: ${{ github.actor }}
-          Description: ${{ inputs.description }}
-          Location: services/$SERVICE_NAME/
-
-          Next: Implement business logic and entities"
-
-          git push origin main
-
-          echo "✅ Service '$SERVICE_NAME' created in services/ directory!"
-          echo "📁 Location: services/$SERVICE_NAME/"
-          echo "🌐 Repository: https://github.com/${{ github.repository }}"
-          echo "📖 API Documentation: http://localhost:8080/swagger-ui.html (after running)"- name: Validate service name and setup directories
-      - name: Service Generation
-        run: |
-          SERVICE_NAME="${{ inputs.service_name }}"
-
-          echo "🔧 Starting service generation for: $SERVICE_NAME"
-          echo "📍 Current working directory: $(pwd)"
-          echo "📁 Available files/directories:"
-          ls -la
-
-          # Validate service name
-          if [[ ! "$SERVICE_NAME" =~ ^[a-z][a-z0-9-]*[a-z0-9]$ ]] || [[ ${#SERVICE_NAME} -lt 3 ]] || [[ ${#SERVICE_NAME} -gt 50 ]]; then
-            echo "❌ Invalid service name: $SERVICE_NAME"
-            echo "Service name must be 3-50 characters, lowercase, kebab-case (e.g., my-service)"
-            exit 1
-          fi
-
-          # Create directory for the new service
-          echo "📁 Creating service directory: $SERVICE_NAME"
-          mkdir -p "$SERVICE_NAME"
-
-          # Verify directory was created
-          if [[ -d "$SERVICE_NAME" ]]; then
-            echo "✅ Service directory created successfully: $SERVICE_NAME"
-            echo "📁 Directory contents:"
-            ls -la "$SERVICE_NAME"
-          else
-            echo "❌ Failed to create service directory: $SERVICE_NAME"
-            exit 1
-          fi
-
-          # Test if we can write to the directory
-          echo "test" > "$SERVICE_NAME/test.txt"
-          if [[ -f "$SERVICE_NAME/test.txt" ]]; then
-            echo "✅ Directory is writable"
-            rm "$SERVICE_NAME/test.txt"
-          else
-            echo "❌ Directory is not writable"
-            exit 1
-          fi
-
       - name: Download OpenAPI Generator
         working-directory: ${{ inputs.service_name }}
         run: |
@@ -1360,20 +1139,20 @@ jobs:
               
               print("✅ Generated basic database schema as fallback")
           PYTHON_SCRIPT_EOF
-                    
-                    echo "✅ Created database schema generation script"
 
-                - name: Generate database schema
-                  working-directory: ${{ inputs.service_name }}
-                  run: |
-                    SERVICE_NAME="${{ inputs.service_name }}"
-                    
-                    echo "🗄️  Generating PostgreSQL database schema..."
-                    python3 generate_schema.py
-                    
-                    echo "📁 Generated schema files:"
-                    ls -la database/scripts/
-                    ls -la src/main/resources/db/migration/
+          echo "✅ Created database schema generation script"
+
+      - name: Generate database schema
+        working-directory: ${{ inputs.service_name }}
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+
+          echo "🗄️  Generating PostgreSQL database schema..."
+          python3 generate_schema.py
+
+          echo "📁 Generated schema files:"
+          ls -la database/scripts/
+          ls -la src/main/resources/db/migration/
 
       - name: Create database initialization scripts
         working-directory: ${{ inputs.service_name }}
@@ -1523,9 +1302,9 @@ jobs:
               "repository": "${{ github.repository }}"
             }
 
-      - name: Create service directory and commit to current repository
+      - name: Finalize and commit generated service
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Default token works for current repo
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SERVICE_NAME="${{ inputs.service_name }}"
 
@@ -1536,27 +1315,66 @@ jobs:
           # Create services directory if it doesn't exist
           mkdir -p services
 
-          # Check if the service directory exists
+          # Check if the service directory exists and has been generated
           if [[ ! -d "$SERVICE_NAME" ]]; then
             echo "❌ Service directory not found: $SERVICE_NAME"
             echo "📁 Available directories:"
             ls -la
             echo "🔍 Looking for service directories:"
             find . -maxdepth 2 -type d -name "*$SERVICE_NAME*" || echo "No matching directories found"
+            
+            # Since the directory should exist, let's see if the working-directory approach left files elsewhere
+            echo "🔍 Searching for pom.xml files (indicator of service location):"
+            find . -name "pom.xml" -type f 2>/dev/null || echo "No pom.xml files found"
+            echo "🔍 Searching for any service-related files:"
+            find . -name "*.java" -type f 2>/dev/null | head -5 || echo "No Java files found"
+            
             exit 1
           fi
 
-          # Move generated code to services directory
-          echo "📦 Moving $SERVICE_NAME to services/$SERVICE_NAME"
-          mv "$SERVICE_NAME" "services/$SERVICE_NAME"
+          # Verify the service was properly generated
+          if [[ ! -f "$SERVICE_NAME/pom.xml" ]]; then
+            echo "❌ Service generation incomplete - no pom.xml found in $SERVICE_NAME"
+            echo "📁 Contents of $SERVICE_NAME directory:"
+            ls -la "$SERVICE_NAME/"
+            exit 1
+          fi
 
-          # Verify the move was successful
+          echo "✅ Service generation verified - pom.xml found"
+
+          # Check if services directory already contains the service
+          if [[ -d "services/$SERVICE_NAME" ]]; then
+            echo "⚠️  Service already exists in services directory, removing old version..."
+            rm -rf "services/$SERVICE_NAME"
+          fi
+
+          # Copy the service to services directory instead of moving (safer)
+          echo "📦 Copying $SERVICE_NAME to services/$SERVICE_NAME"
+          cp -r "$SERVICE_NAME" "services/$SERVICE_NAME"
+
+          # Verify the copy was successful
           if [[ ! -d "services/$SERVICE_NAME" ]]; then
-            echo "❌ Failed to move service directory"
+            echo "❌ Failed to copy service directory"
+            echo "📁 Contents of services directory:"
+            ls -la services/
             exit 1
           fi
 
-          echo "✅ Service directory moved successfully"
+          # Clean up the original directory
+          echo "🧹 Cleaning up original directory"
+          rm -rf "$SERVICE_NAME"
+
+          echo "✅ Service directory copied successfully"
+          echo "📁 Verifying services directory contents:"
+          ls -la "services/$SERVICE_NAME/" | head -10
+
+          # Verify key files exist
+          if [[ -f "services/$SERVICE_NAME/pom.xml" ]]; then
+            echo "✅ pom.xml found in services directory"
+          else
+            echo "❌ pom.xml missing from services directory"
+            exit 1
+          fi
 
           # Create README for the services directory
           if [[ ! -f "services/README.md" ]]; then
@@ -1652,7 +1470,12 @@ jobs:
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
           git add services/
-          git commit -m "🎉 Add $SERVICE_NAME microservice
+
+          # Check if there are changes to commit
+          if git diff --cached --quiet; then
+            echo "⚠️  No changes to commit"
+          else
+            git commit -m "🎉 Add $SERVICE_NAME microservice
 
           Generated Spring Boot service with:
           ✅ Complete RESTful API from OpenAPI spec
@@ -1669,7 +1492,9 @@ jobs:
 
           Next: Implement business logic and entities"
 
-          git push origin main
+            git push origin main
+            echo "✅ Changes committed and pushed successfully"
+          fi
 
           echo "✅ Service '$SERVICE_NAME' created in services/ directory!"
           echo "📁 Location: services/$SERVICE_NAME/"
