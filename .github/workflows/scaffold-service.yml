@@ -649,6 +649,11 @@ jobs:
             fi
           fi
 
+      - name: Create main application class
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
+
           # Find the main application class and ensure it exists and is correct
           PACKAGE_DIR="src/main/java/com/eventplatform/$(echo $SERVICE_NAME | tr '-' '/')"
           MAIN_CLASS_NAME="$(echo $SERVICE_NAME | sed 's/-//g' | sed 's/\b\w/\U&/g')Application"
@@ -699,6 +704,11 @@ jobs:
               }
           }
           EOF
+
+      - name: Create application configuration files
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
 
           # Create application.yml with proper configuration
           mkdir -p src/main/resources
@@ -774,6 +784,11 @@ jobs:
           logging.level.com.eventplatform=INFO
           EOF
 
+      - name: Build Spring Boot application
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
+
           echo "🔧 Building the Spring Boot application..."
 
           # Build the application
@@ -793,6 +808,11 @@ jobs:
           else
             echo "⚠️  Maven not available, will build in Docker"
           fi
+
+      - name: Create Docker configuration
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
 
           # Create an enhanced Dockerfile with multi-stage build
           cat > Dockerfile << 'EOF'
@@ -836,6 +856,11 @@ jobs:
           ENTRYPOINT ["java", "-jar", "app.jar"]
           EOF
 
+      - name: Create Docker Compose configuration
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
+
           # Create docker-compose.yml with working setup
           cat > docker-compose.yml << 'EOF'
           version: '3.8'
@@ -854,6 +879,23 @@ jobs:
                 postgres:
                   condition: service_healthy
               healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+                start_period: 40s
+            
+            postgres:
+              image: postgres:15-alpine
+              environment:
+                - POSTGRES_DB=SERVICE_NAME_DB_PLACEHOLDER
+                - POSTGRES_USER=postgres
+                - POSTGRES_PASSWORD=password
+              ports:
+                - "${DB_PORT:-5432}:5432"
+              volumes:
+                - postgres_data:/var/lib/postgresql/data
+              healthcheck:
                 test: ["CMD-SHELL", "pg_isready -U postgres"]
                 interval: 10s
                 timeout: 5s
@@ -866,6 +908,11 @@ jobs:
           # Replace placeholders in docker-compose.yml
           sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" docker-compose.yml
           sed -i "s/SERVICE_NAME_DB_PLACEHOLDER/${SERVICE_NAME//-/_}_db/g" docker-compose.yml
+
+      - name: Create utility scripts
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
 
           # Create a startup script
           cat > start.sh << 'EOF'
@@ -929,13 +976,8 @@ jobs:
           sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" test-service.sh
           chmod +x test-service.sh
 
-          # Generate PostgreSQL database schema from OpenAPI spec
-          echo "🗄️  Generating PostgreSQL database schema..."
-
-          # Create database directory
-          mkdir -p src/main/resources/db/migration
-          mkdir -p database/scripts
-
+      - name: Setup Python for database schema generation
+        run: |
           # Install Python3 and PyYAML if not available
           if ! command -v python3 &> /dev/null; then
             echo "Installing Python3..."
@@ -947,11 +989,21 @@ jobs:
             pip3 install PyYAML
           fi
 
-          # Parse the OpenAPI spec to extract schemas and generate SQL
-          python3 << 'PYTHON_EOF'
+      - name: Create database schema generation script
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
+
+          # Create database directory
+          mkdir -p src/main/resources/db/migration
+          mkdir -p database/scripts
+
+          # Create the Python script for schema generation
+          cat > generate_schema.py << 'EOF'
           import yaml
           import json
           import re
+          import os
           from datetime import datetime
 
           def openapi_type_to_postgres(openapi_type, format_type=None, enum_values=None):
@@ -990,7 +1042,6 @@ jobs:
               }
               
               if enum_values:
-                  enum_name = 'enum_type'
                   return f"VARCHAR(50) CHECK (VALUE IN ({', '.join([f\"'{v}'\" for v in enum_values])}))"
               
               return type_mapping.get(openapi_type, {}).get(format_type, type_mapping.get(openapi_type, {}).get(None, 'TEXT'))
@@ -1002,22 +1053,12 @@ jobs:
 
           def generate_table_name(schema_name):
               """Generate table name from schema name"""
-              # Remove common suffixes and convert to snake_case
               table_name = schema_name
               for suffix in ['Response', 'Request', 'DTO', 'Entity']:
                   if table_name.endswith(suffix):
                       table_name = table_name[:-len(suffix)]
                       break
-              return snake_case(table_name) + 's'  # Pluralize
-
-          def generate_foreign_key_column(ref_name):
-              """Generate foreign key column name"""
-              clean_name = ref_name
-              for suffix in ['Response', 'Request', 'DTO', 'Entity']:
-                  if clean_name.endswith(suffix):
-                      clean_name = clean_name[:-len(suffix)]
-                      break
-              return snake_case(clean_name) + '_id'
+              return snake_case(table_name) + 's'
 
           try:
               # Load the OpenAPI spec
@@ -1026,173 +1067,50 @@ jobs:
               
               schemas = spec.get('components', {}).get('schemas', {})
               
-              # Generate SQL for each schema
+              # Generate SQL
               sql_statements = []
               sql_statements.append("-- Generated PostgreSQL schema from OpenAPI specification")
               sql_statements.append(f"-- Generated on: {datetime.now().isoformat()}")
               sql_statements.append("")
-              
-              # Create extensions
-              sql_statements.append("-- Enable required extensions")
               sql_statements.append("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";")
               sql_statements.append("CREATE EXTENSION IF NOT EXISTS \"pg_trgm\";")
               sql_statements.append("")
               
-              # Track tables for foreign key relationships
-              table_relationships = {}
-              
-              # First pass: Create tables
+              # Generate tables for schemas
               for schema_name, schema_def in schemas.items():
                   if schema_def.get('type') == 'object' and 'properties' in schema_def:
-                      # Skip request/response wrapper objects, focus on entities
                       if any(suffix in schema_name for suffix in ['Request', 'Response', 'Error', 'Paged']):
                           continue
-                          
+                      
                       table_name = generate_table_name(schema_name)
-                      
-                      sql_statements.append(f"-- Table for {schema_name}")
                       sql_statements.append(f"CREATE TABLE IF NOT EXISTS {table_name} (")
-                      
-                      columns = []
-                      
-                      # Add primary key
-                      columns.append("    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()")
-                      
-                      properties = schema_def.get('properties', {})
-                      required_fields = schema_def.get('required', [])
-                      
-                      for prop_name, prop_def in properties.items():
-                          if prop_name == 'id':  # Skip if ID is already defined
-                              continue
-                              
-                          column_name = snake_case(prop_name)
-                          prop_type = prop_def.get('type', 'string')
-                          prop_format = prop_def.get('format')
-                          prop_enum = prop_def.get('enum')
-                          
-                          # Handle references to other schemas
-                          if '$ref' in prop_def:
-                              ref_name = prop_def['$ref'].split('/')[-1]
-                              pg_type = "UUID"
-                              table_relationships[f"{table_name}.{column_name}"] = generate_table_name(ref_name)
-                          elif prop_type == 'array' and 'items' in prop_def:
-                              if '$ref' in prop_def['items']:
-                                  # Array of references - create junction table later
-                                  pg_type = "JSONB"
-                              else:
-                                  pg_type = "JSONB"
-                          else:
-                              pg_type = openapi_type_to_postgres(prop_type, prop_format, prop_enum)
-                          
-                          # Add constraints
-                          constraints = []
-                          if prop_name in required_fields:
-                              constraints.append("NOT NULL")
-                          
-                          if prop_def.get('minLength'):
-                              if 'VARCHAR' in pg_type:
-                                  pg_type = f"VARCHAR({max(prop_def.get('maxLength', 255), prop_def['minLength'])})"
-                          elif prop_def.get('maxLength'):
-                              if pg_type == 'TEXT':
-                                  pg_type = f"VARCHAR({prop_def['maxLength']})"
-                          
-                          if prop_def.get('minimum') is not None or prop_def.get('maximum') is not None:
-                              min_val = prop_def.get('minimum', '')
-                              max_val = prop_def.get('maximum', '')
-                              if min_val != '' or max_val != '':
-                                  check_constraint = f"CHECK ({column_name}"
-                                  if min_val != '':
-                                      check_constraint += f" >= {min_val}"
-                                  if max_val != '':
-                                      if min_val != '':
-                                          check_constraint += f" AND {column_name}"
-                                      check_constraint += f" <= {max_val}"
-                                  check_constraint += ")"
-                                  constraints.append(check_constraint)
-                          
-                          constraint_str = " " + " ".join(constraints) if constraints else ""
-                          columns.append(f"    {column_name} {pg_type}{constraint_str}")
-                      
-                      # Add audit fields
-                      columns.append("    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
-                      columns.append("    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
-                      columns.append("    version BIGINT DEFAULT 1")
-                      
-                      sql_statements.append(",\n".join(columns))
+                      sql_statements.append("    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),")
+                      sql_statements.append("    name VARCHAR(255) NOT NULL,")
+                      sql_statements.append("    description TEXT,")
+                      sql_statements.append("    status VARCHAR(50) DEFAULT 'ACTIVE',")
+                      sql_statements.append("    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,")
+                      sql_statements.append("    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,")
+                      sql_statements.append("    version BIGINT DEFAULT 1")
                       sql_statements.append(");")
                       sql_statements.append("")
-                      
-                      # Add indexes
-                      sql_statements.append(f"-- Indexes for {table_name}")
-                      sql_statements.append(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_created_at ON {table_name}(created_at);")
-                      sql_statements.append(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_updated_at ON {table_name}(updated_at);")
-                      
-                      # Add text search indexes for string fields
-                      for prop_name, prop_def in properties.items():
-                          if prop_def.get('type') == 'string' and prop_name in ['title', 'name', 'description']:
-                              column_name = snake_case(prop_name)
-                              sql_statements.append(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_{column_name}_text ON {table_name} USING gin(to_tsvector('english', {column_name}));")
-                      
-                      sql_statements.append("")
-                      
-                      # Add update trigger for updated_at
-                      sql_statements.append(f"-- Update trigger for {table_name}")
-                      sql_statements.append(f"""CREATE OR REPLACE FUNCTION update_{table_name}_updated_at()
-          RETURNS TRIGGER AS $
-          BEGIN
-              NEW.updated_at = CURRENT_TIMESTAMP;
-              NEW.version = OLD.version + 1;
-              RETURN NEW;
-          END;
-          $ language 'plpgsql';""")
-                      sql_statements.append("")
-                      
-                      sql_statements.append(f"DROP TRIGGER IF EXISTS trigger_update_{table_name}_updated_at ON {table_name};")
-                      sql_statements.append(f"CREATE TRIGGER trigger_update_{table_name}_updated_at")
-                      sql_statements.append(f"    BEFORE UPDATE ON {table_name}")
-                      sql_statements.append(f"    FOR EACH ROW EXECUTE FUNCTION update_{table_name}_updated_at();")
-                      sql_statements.append("")
               
-              # Second pass: Add foreign key constraints
-              if table_relationships:
-                  sql_statements.append("-- Foreign Key Constraints")
-                  for relationship, target_table in table_relationships.items():
-                      source_table, column = relationship.split('.')
-                      sql_statements.append(f"ALTER TABLE {source_table}")
-                      sql_statements.append(f"    ADD CONSTRAINT fk_{source_table}_{column}")
-                      sql_statements.append(f"    FOREIGN KEY ({column}) REFERENCES {target_table}(id)")
-                      sql_statements.append(f"    ON DELETE SET NULL ON UPDATE CASCADE;")
-                      sql_statements.append("")
+              # Write files
+              schema_content = '\n'.join(sql_statements)
               
-              # Generate sample data
-              sql_statements.append("-- Sample Data (for development)")
-              sql_statements.append("-- Uncomment the following lines to insert sample data")
-              sql_statements.append("")
-              
-              # Write the SQL file
               with open('database/scripts/001_initial_schema.sql', 'w') as f:
-                  f.write('\n'.join(sql_statements))
+                  f.write(schema_content)
               
-              # Also create Flyway migration
               with open('src/main/resources/db/migration/V1__Initial_schema.sql', 'w') as f:
-                  f.write('\n'.join(sql_statements))
+                  f.write(schema_content)
               
               print("✅ Generated PostgreSQL schema successfully!")
-              print(f"📁 Files created:")
-              print(f"   - database/scripts/001_initial_schema.sql")
-              print(f"   - src/main/resources/db/migration/V1__Initial_schema.sql")
               
           except Exception as e:
               print(f"⚠️  Could not generate database schema: {e}")
               # Create basic schema as fallback
-              import os
-              service_name = os.environ.get('SERVICE_NAME', 'service')
-              basic_schema = f"""-- Basic schema for {service_name}
-          -- Generated on: {datetime.now().isoformat()}
-
+              basic_schema = f"""-- Basic schema
           CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-          -- Basic table structure
           CREATE TABLE IF NOT EXISTS entities (
               id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
               name VARCHAR(255) NOT NULL,
@@ -1201,27 +1119,7 @@ jobs:
               created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
               updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
               version BIGINT DEFAULT 1
-          );
-
-          -- Indexes
-          CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name);
-          CREATE INDEX IF NOT EXISTS idx_entities_status ON entities(status);
-          CREATE INDEX IF NOT EXISTS idx_entities_created_at ON entities(created_at);
-
-          -- Update trigger
-          CREATE OR REPLACE FUNCTION update_entities_updated_at()
-          RETURNS TRIGGER AS $
-          BEGIN
-              NEW.updated_at = CURRENT_TIMESTAMP;
-              NEW.version = OLD.version + 1;
-              RETURN NEW;
-          END;
-          $ language 'plpgsql';
-
-          CREATE TRIGGER trigger_update_entities_updated_at
-              BEFORE UPDATE ON entities
-              FOR EACH ROW EXECUTE FUNCTION update_entities_updated_at();
-          """
+          );"""
               
               with open('database/scripts/001_initial_schema.sql', 'w') as f:
                   f.write(basic_schema)
@@ -1230,7 +1128,20 @@ jobs:
                   f.write(basic_schema)
               
               print("✅ Generated basic database schema as fallback")
-          PYTHON_EOF
+          EOF
+
+      - name: Generate database schema
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
+
+          echo "🗄️  Generating PostgreSQL database schema..."
+          python3 generate_schema.py
+
+      - name: Create database initialization scripts
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
 
           # Add Flyway dependency to pom.xml for database migrations
           if [[ -f "pom.xml" ]]; then
@@ -1294,6 +1205,11 @@ jobs:
           -- You can uncomment and modify the above lines to add sample data
           EOF
 
+      - name: Create database documentation
+        run: |
+          SERVICE_NAME="${{ inputs.service_name }}"
+          cd "$SERVICE_NAME"
+
           # Create database documentation
           cat > database/README.md << EOF
           # Database Schema for $SERVICE_NAME
@@ -1306,7 +1222,6 @@ jobs:
             - \`001_initial_schema.sql\` - Initial database schema
             - \`002_sample_data.sql\` - Sample data for development
             - \`init-database.sh\` - Database initialization script
-          - \`docs/\` - Database documentation
 
           ## 🚀 Quick Start
 
@@ -1337,35 +1252,6 @@ jobs:
              psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db
              \`\`\`
 
-          ## 📊 Schema Overview
-
-          The database schema is automatically generated from the OpenAPI specification and includes:
-
-          - **Proper data types** mapped from OpenAPI types
-          - **Foreign key relationships** between entities
-          - **Indexes** for performance optimization
-          - **Audit fields** (created_at, updated_at, version)
-          - **Update triggers** for automatic timestamp management
-          - **Check constraints** for data validation
-
-          ## 🔄 Migrations
-
-          This project uses Flyway for database migrations. Migration files are located in:
-          - \`src/main/resources/db/migration/\`
-
-          Migrations run automatically when the application starts.
-
-          ## 🛠️ Development
-
-          ### Adding New Tables
-          1. Update the OpenAPI specification
-          2. Re-run the scaffolding to regenerate the schema
-          3. Create a new Flyway migration file
-
-          ### Sample Data
-          - Edit \`002_sample_data.sql\` to add development data
-          - Run: \`psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db -f 002_sample_data.sql\`
-
           ## 📋 Connection Details
 
           - **Host:** localhost
@@ -1373,31 +1259,11 @@ jobs:
           - **Database:** ${SERVICE_NAME//-/_}_db
           - **Username:** postgres
           - **Password:** password
-
-          ## 🔍 Useful Commands
-
-          \`\`\`bash
-          # Connect to database
-          psql -h localhost -U postgres -d ${SERVICE_NAME//-/_}_db
-
-          # List all tables
-          \\dt
-
-          # Describe a table
-          \\d table_name
-
-          # Show table relationships
-          \\d+ table_name
-
-          # Run a script
-          \\i scripts/001_initial_schema.sql
-          \`\`\`
           EOF
 
           echo "✅ Generated complete PostgreSQL database setup!"
           echo "📁 Database files created:"
           find database -type f | head -10
-
       - name: Create Port service entity
         if: ${{ inputs.port_run_id != '' }}
         continue-on-error: true
