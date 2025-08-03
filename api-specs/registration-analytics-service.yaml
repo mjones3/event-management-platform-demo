@@ -1679,91 +1679,121 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
-# Webhook specifications (for external integrations)
-webhooks:
-  registration-confirmed:
-    post:
-      requestBody:
-        description: Webhook payload for registration confirmation
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                eventType:
-                  type: string
-                  enum: [registration.confirmed]
-                timestamp:
-                  type: string
-                  format: date-time
-                data:
-                  $ref: '#/components/schemas/Registration'
-                metadata:
-                  type: object
-                  properties:
-                    webhookId:
-                      type: string
-                    deliveryAttempt:
-                      type: integer
-      responses:
-        '200':
-          description: Webhook received successfully
+  # Webhook Payload Schemas (for external integrations)
+  # Note: These schemas document webhook payloads that this service sends to external systems
+  # The actual webhook endpoints would be implemented by consuming services
+  
+    WebhookRegistrationConfirmed:
+      type: object
+      description: Webhook payload sent when a registration is confirmed
+      required:
+        - eventType
+        - timestamp
+        - data
+      properties:
+        eventType:
+          type: string
+          enum: [registration.confirmed]
+          example: "registration.confirmed"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        data:
+          $ref: '#/components/schemas/Registration'
+        metadata:
+          type: object
+          properties:
+            webhookId:
+              type: string
+              example: "wh_123456789"
+            deliveryAttempt:
+              type: integer
+              example: 1
+            signature:
+              type: string
+              description: HMAC signature for payload verification
+              example: "sha256=abc123def456"
 
-  payment-completed:
-    post:
-      requestBody:
-        description: Webhook payload for payment completion
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                eventType:
-                  type: string
-                  enum: [payment.completed]
-                timestamp:
-                  type: string
-                  format: date-time
-                data:
-                  type: object
-                  properties:
-                    registrationId:
-                      type: string
-                      format: uuid
-                    paymentInfo:
-                      $ref: '#/components/schemas/PaymentInfo'
-      responses:
-        '200':
-          description: Webhook received successfully
+    WebhookPaymentCompleted:
+      type: object
+      description: Webhook payload sent when a payment is completed
+      required:
+        - eventType
+        - timestamp
+        - data
+      properties:
+        eventType:
+          type: string
+          enum: [payment.completed]
+          example: "payment.completed"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:35:00Z"
+        data:
+          type: object
+          required:
+            - registrationId
+            - paymentInfo
+          properties:
+            registrationId:
+              type: string
+              format: uuid
+              example: "123e4567-e89b-12d3-a456-426614174000"
+            paymentInfo:
+              $ref: '#/components/schemas/PaymentInfo'
+        metadata:
+          type: object
+          properties:
+            webhookId:
+              type: string
+              example: "wh_987654321"
+            deliveryAttempt:
+              type: integer
+              example: 1
 
-  check-in-recorded:
-    post:
-      requestBody:
-        description: Webhook payload for check-in events
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                eventType:
-                  type: string
-                  enum: [checkin.recorded]
-                timestamp:
-                  type: string
-                  format: date-time
-                data:
-                  type: object
-                  properties:
-                    registrationId:
-                      type: string
-                      format: uuid
-                    checkInRecord:
-                      $ref: '#/components/schemas/CheckInRecord'
-                    eventId:
-                      type: string
-      responses:
-        '200':
-          description: Webhook received successfully
+    WebhookCheckInRecorded:
+      type: object
+      description: Webhook payload sent when a check-in is recorded
+      required:
+        - eventType
+        - timestamp
+        - data
+      properties:
+        eventType:
+          type: string
+          enum: [checkin.recorded]
+          example: "checkin.recorded"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T14:00:00Z"
+        data:
+          type: object
+          required:
+            - registrationId
+            - checkInRecord
+            - eventId
+          properties:
+            registrationId:
+              type: string
+              format: uuid
+              example: "123e4567-e89b-12d3-a456-426614174000"
+            checkInRecord:
+              $ref: '#/components/schemas/CheckInRecord'
+            eventId:
+              type: string
+              example: "507f1f77bcf86cd799439011"
+        metadata:
+          type: object
+          properties:
+            webhookId:
+              type: string
+              example: "wh_555666777"
+            deliveryAttempt:
+              type: integer
+              example: 1
 
 # Tags for API organization
 tags:
