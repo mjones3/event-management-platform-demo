@@ -8,3 +8,4 @@ This directory contains all the scaffolded microservices for the Event Managemen
 - [`registration-analytics-service`](./services/registration-analytics-service) - Registration Analytics Service
 - [`registration-analytics-service`](./services/registration-analytics-service) - Registration Analytics Service
 - [`registration-analytics-service`](./services/registration-analytics-service) - Registration Analytics Service
+- [`pet-store`](./services/pet-store) - Pet Store
